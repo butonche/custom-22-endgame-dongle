@@ -1,0 +1,21 @@
+---
+include:
+  - board: seeeduino_xiao_ble
+    shield: xiao_dongle dongle_display
+    snippet: zmk-usb-logging
+    artifact-name: xiao_dongle
+  - board: seeeduino_xiao_ble
+    shield: custom_22_left
+    artifact-name: custom_22_left
+  - board: seeeduino_xiao_ble
+    shield: custom_22_right
+    artifact-name: custom_22_right
+  - board: efogtech_trackball_0
+    snippet: zmk-usb-logging
+    artifact-name: efogtech_trackball_0
+  - board: seeeduino_xiao_ble
+    shield: settings_reset
+    artifact-name: settings_reset
+  - board: efogtech_trackball_0
+    shield: settings_reset
+    artifact-name: settings_reset_trackball

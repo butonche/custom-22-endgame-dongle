@@ -1,0 +1,7 @@
+name: custom-22-endgame-dongle
+build:
+  settings:
+    board_root: .
+    dts_root: .
+  cmake: .
+  kconfig: Kconfig

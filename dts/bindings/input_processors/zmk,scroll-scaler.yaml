@@ -1,0 +1,5 @@
+description: Scroll scaler with internal remainder tracking for input-split
+
+compatible: "zmk,scroll-scaler"
+
+include: ip_two_param.yaml

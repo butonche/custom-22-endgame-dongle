@@ -1,0 +1,8 @@
+file_format: "1"
+id: xiao_dongle
+name: xiao_dongle
+type: shield
+requires: [seeeduino_xiao_ble]
+exposes: [i2c_oled]
+features:
+  - display

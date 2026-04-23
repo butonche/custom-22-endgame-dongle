@@ -1,0 +1,6 @@
+/* Right half of custom_22 split keyboard */
+#include "../custom_22/custom_22.dtsi"
+
+&default_transform {
+    col-offset = <11>;
+};

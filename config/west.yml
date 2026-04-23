@@ -1,0 +1,34 @@
+manifest:
+  remotes:
+    - name: zmkfirmware
+      url-base: https://github.com/zmkfirmware
+    - name: butonche
+      url-base: https://github.com/butonche
+    - name: efogdev
+      url-base: https://github.com/efogdev
+    - name: englmaxi
+      url-base: https://github.com/englmaxi
+    - name: badjeff
+      url-base: https://github.com/badjeff
+  projects:
+    - name: zmk
+      remote: zmkfirmware
+      revision: v0.3
+      import: app/west.yml
+    - name: zmk-paw3395-driver
+      remote: efogdev
+      revision: 209a1f9
+    - name: zmk-ec11-ish-driver
+      remote: efogdev
+      revision: a539bed
+    - name: zmk-feature-rolling-combos
+      remote: butonche
+      revision: main
+    - name: zmk-dongle-display
+      remote: englmaxi
+      revision: v0.3
+    - name: zmk-input-processor-xyz
+      remote: badjeff
+      revision: main
+  self:
+    path: config

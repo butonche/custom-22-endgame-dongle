@@ -1,0 +1,37 @@
+#include <dt-bindings/spi/spi.h>
+
+/ {
+	aliases { led-strip = &led_strip; };
+	chosen { zmk,underglow = &led_strip; };
+
+	EXT_POWER: EXT_POWER {
+		compatible = "zmk,ext-power-generic";
+		control-gpios = <&gpio1 0 GPIO_ACTIVE_HIGH>, <&gpio1 3 GPIO_ACTIVE_HIGH>;
+		init-delay-ms = <1000>;
+	};
+};
+
+&spi2 {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+	pinctrl-0 = <&spi2_default>;
+	pinctrl-1 = <&spi2_sleep>;
+	pinctrl-names = "default", "sleep";
+
+	led_strip: ws2812@0 {
+		status = "okay";
+		compatible = "worldsemi,ws2812-spi";
+		reg = <0>;
+		chain-length = <16>;
+		spi-max-frequency = <4000000>;
+		spi-one-frame = <0x70>;
+		spi-zero-frame = <0x40>;
+		spi-cpha;
+		color-mapping =
+			<
+				LED_COLOR_ID_GREEN
+				LED_COLOR_ID_RED
+				LED_COLOR_ID_BLUE
+			>;
+	};
+};

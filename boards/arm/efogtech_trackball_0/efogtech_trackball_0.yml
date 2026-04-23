@@ -1,0 +1,16 @@
+file_format: "1"
+id: efogtech_trackball_0
+name: Trackball
+type: board
+arch: arm
+outputs:
+  - usb
+  - ble
+url: https://github.com/efogdev/trackball-zmk-config
+features:
+  - keys
+  - pointer
+  - studio
+  - encoder
+  - backlight
+  - underglow

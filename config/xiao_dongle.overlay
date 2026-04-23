@@ -1,0 +1,75 @@
+/* Dongle: trackball input-split proxy, XYZ decompression, and sensor forwarding */
+
+#include <behaviors.dtsi>
+#include <input/processors.dtsi>
+#include <input/processors/xyz.dtsi>
+#include <dt-bindings/zmk/input_transform.h>
+
+#define SCROLL_MULTIPLIER  1
+#define SCROLL_DIVISOR     3
+#define SNIPE_MULTIPLIER   1
+#define SNIPE_DIVISOR      4
+#define LAYER_SCROLL       2
+#define LAYER_SNIPE        3
+
+/ {
+    split_inputs {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        trackball_split: trackball_split@0 {
+            compatible = "zmk,input-split";
+            reg = <0>;
+        };
+    };
+
+    /*
+     * Trackball listener — receives processed + compressed events from peripheral.
+     * Only decompresses XYZ back to X+Y. All accel/scroll processing already done.
+     */
+    trackball_listener: trackball_listener {
+        compatible = "zmk,input-listener";
+        device = <&trackball_split>;
+        input-processors = <&zip_zxy>;
+
+        scroll {
+            layers = <LAYER_SCROLL>;
+            input-processors = <&zip_zxy>,
+                               <&zip_xy_scaler SCROLL_MULTIPLIER SCROLL_DIVISOR>,
+                               <&zip_xy_to_scroll_mapper>,
+                               <&zip_scroll_transform INPUT_TRANSFORM_Y_INVERT>;
+        };
+
+        snipe {
+            layers = <LAYER_SNIPE>;
+            input-processors = <&zip_zxy>,
+                               <&zip_xy_scaler SNIPE_MULTIPLIER SNIPE_DIVISOR>;
+        };
+    };
+
+    /* Dummy encoder nodes for sensor forwarding from trackball peripheral.
+     * Disabled — no driver init. Needed so zmk,keymap-sensors phandles resolve. */
+    left_encoder: encoder_left {
+        compatible = "efog,ec11-ish";
+        a-gpios = <&gpio0 0 0>;
+        b-gpios = <&gpio0 1 0>;
+        steps = <48>;
+        pulses = <4>;
+        status = "disabled";
+    };
+
+    right_encoder: encoder_right {
+        compatible = "efog,ec11-ish";
+        a-gpios = <&gpio0 2 0>;
+        b-gpios = <&gpio0 3 0>;
+        steps = <48>;
+        pulses = <4>;
+        status = "disabled";
+    };
+
+    sensors: sensors {
+        compatible = "zmk,keymap-sensors";
+        sensors = <&left_encoder &right_encoder>;
+        triggers-per-rotation = <12>;
+    };
+};

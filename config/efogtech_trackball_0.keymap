@@ -1,0 +1,49 @@
+/*
+ * Trackball peripheral keymap for use with custom_22 dongle.
+ * Overrides the board's native 12-position transform to offset
+ * positions by 22 (keyboard occupies 0-21).
+ */
+
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/pointing.h>
+#include <dt-bindings/zmk/matrix_transform.h>
+
+&default_transform {
+    columns = <1>;
+    rows = <34>;
+    row-offset = <22>;
+    map = <
+        /* 0-21: keyboard position space (padding) */
+        RC(0,0)  RC(1,0)  RC(2,0)  RC(3,0)  RC(4,0)  RC(5,0)
+        RC(6,0)  RC(7,0)  RC(8,0)  RC(9,0)  RC(10,0) RC(11,0)
+        RC(12,0) RC(13,0) RC(14,0) RC(15,0) RC(16,0) RC(17,0)
+        RC(18,0) RC(19,0) RC(20,0) RC(21,0)
+        /* 22-33: trackball buttons + encoders */
+        RC(22,0) RC(23,0) RC(24,0) RC(25,0) RC(26,0) RC(27,0)
+        RC(28,0) RC(29,0) RC(30,0) RC(31,0) RC(32,0) RC(33,0)
+    >;
+};
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            display-name = "Default";
+            sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN &inc_dec_kp C_VOL_UP C_VOL_DN>;
+            bindings = <
+                /* 0-21: keyboard space (unused by trackball) */
+                &none &none &none &none &none &none
+                &none &none &none &none &none &none
+                &none &none &none &none &none &none
+                &none &none &none &none
+                /* 22-29: trackball buttons */
+                &none &none &none &none &none &none
+                &none &none
+                /* 30-33: encoders */
+                &none &none &none &none
+            >;
+        };
+    };
+};

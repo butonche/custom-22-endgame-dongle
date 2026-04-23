@@ -1,0 +1,41 @@
+description: Input Processor for mixing readings from two mouse sensors (stripped)
+compatible: "zmk,pointer-2s-mixer"
+
+include: ip_common.yaml
+
+properties:
+  "#input-processor-cells":
+    type: int
+    required: true
+    const: 1
+  sync-report-ms:
+    type: int
+    required: true
+    default: 2
+  sync-scroll-report-ms:
+    type: int
+    required: true
+    default: 8
+  twist-interference-thres:
+    type: int
+    required: true
+    default: 200
+  twist-thres:
+    type: int
+    required: true
+    default: 4
+  sensor1-pos:
+    type: uint8-array
+    required: true
+    default: [ 0, 128, 0 ]
+  sensor2-pos:
+    type: uint8-array
+    required: true
+    default: [ 255, 128, 0 ]
+  ball-radius:
+    type: int
+    required: true
+    default: 120
+
+input-processor-cells:
+  - param1

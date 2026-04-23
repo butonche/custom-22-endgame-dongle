@@ -1,0 +1,25 @@
+description: Acceleration curve input processor with DTS-defined Bezier curves
+compatible: "zmk,accel-curve"
+
+include: ip_zero_param.yaml
+
+properties:
+  max-curves:
+    type: int
+    default: 4
+  points:
+    type: int
+    required: true
+    description: Number of interpolation points in the lookup table
+  device-name:
+    type: string
+  event-codes:
+    type: array
+    required: true
+    description: Input event codes to process (e.g. INPUT_REL_X, INPUT_REL_Y)
+  curve-data:
+    type: array
+    description: |
+      Bezier control points as groups of 8 int16 values per segment:
+      start_x, start_y, end_x, end_y, cp1_x, cp1_y, cp2_x, cp2_y.
+      Values are scaled by 100 (e.g. 41 means 0.41).

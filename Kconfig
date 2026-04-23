@@ -1,0 +1,156 @@
+# Stripped efogdev input processors for trackball peripheral
+
+# Stub for zmk-runtime-config (ec11-ish driver compatibility)
+config ZMK_RUNTIME_CONFIG
+    bool "Runtime config stub (provides ZRC_GET fallback)"
+    default n
+
+if ZMK_POINTING
+
+config ZMK_POINTER_2S_MIXER
+    bool "Pointer 2-sensor mixer"
+    default n
+    depends on INPUT
+
+if ZMK_POINTER_2S_MIXER
+
+config POINTER_2S_MIXER_DEFAULT_MOVE_COEF
+    int "Default pointer movement coefficient"
+    default 20
+
+config POINTER_2S_MIXER_DEFAULT_TWIST_COEF
+    int "Default twist scroll coefficient"
+    default 5
+
+config POINTER_2S_MIXER_EMA_ALPHA
+    int "EMA smoothing alpha (1-50)"
+    default 10
+
+config POINTER_2S_MIXER_ENSURE_SYNC
+    bool "Ensure sensor sync"
+    default y
+
+config POINTER_2S_MIXER_SYNC_WINDOW_MS
+    int "Sync window in ms"
+    default 2
+
+config POINTER_2S_MIXER_SCROLL_DISABLES_POINTER
+    bool "Scroll disables pointer movement"
+    default n
+
+config POINTER_2S_MIXER_POINTER_AFTER_SCROLL_ACTIVATION
+    int "Pointer reactivation delay after scroll (ms)"
+    default 100
+
+config POINTER_2S_MIXER_DELTA_Y_OVER_TRANS_MAG_MUL
+    int "Delta Y magnitude multiplier"
+    default 4
+
+config POINTER_2S_MIXER_DELTA_Y_OVER_TRANS_MAG_DIV
+    int "Delta Y magnitude divisor"
+    default 3
+
+config POINTER_2S_MIXER_STEADY_THRES
+    int "Steady threshold"
+    default 4
+
+config POINTER_2S_MIXER_STEADY_COOLDOWN
+    int "Steady cooldown (ms)"
+    default 150
+
+config POINTER_2S_MIXER_REMAINDER_TTL
+    int "Remainder time-to-live (ms)"
+    default 16
+
+config POINTER_2S_MIXER_TWIST_REMAINDER_TTL
+    int "Twist remainder TTL (ms)"
+    default 100
+
+config POINTER_2S_MIXER_TWIST_FILTER_TTL
+    int "Twist filter TTL (ms)"
+    default 65
+
+config POINTER_2S_MIXER_TWIST_FILTER_DEBOUNCE
+    int "Twist filter debounce (ms)"
+    default 35
+
+config POINTER_2S_MIXER_TWIST_MAX_VALUE
+    int "Twist max value"
+    default 750
+
+config POINTER_2S_MIXER_SIGNIFICANT_MOVEMENT_MUL
+    int "Significant movement multiplier"
+    default 15
+
+config POINTER_2S_MIXER_DIRECTION_FILTER_EN
+    bool "Enable direction filter"
+    default y
+
+config POINTER_2S_MIXER_DIRECTION_FILTER_TTL
+    int "Direction filter TTL (ms)"
+    default 80
+
+config POINTER_2S_MIXER_LAZY_INIT
+    bool "Lazy initialization"
+    default n
+
+config POINTER_2S_MIXER_SMA_EN
+    bool "Enable SMA smoothing"
+    default n
+
+config POINTER_2S_MIXER_SMA_WINDOW_SIZE
+    int "SMA window size"
+    default 3
+
+config POINTER_2S_MIXER_SMA_WINDOW_SIZE_MAX
+    int "SMA maximum window size"
+    default 12
+
+config POINTER_2S_MIXER_SMA_TIMEOUT
+    int "SMA timeout (ms)"
+    default 64
+
+config POINTER_2S_MIXER_SETTINGS_SAVE_DELAY
+    int "Settings save delay (ms)"
+    default 2500
+
+config POINTER_2S_MIXER_34_FILTER_EN
+    bool "Enable 3/4 filter"
+    default y
+
+config POINTER_2S_MIXER_FEEDBACK_EN
+    bool "Enable feedback (not used in stripped version)"
+    default n
+
+config POINTER_2S_MIXER_FEEDBACK_MAX_CONTINUOUS
+    int "Feedback max continuous (ms)"
+    default 65
+
+config POINTER_2S_MIXER_FEEDBACK_COOLDOWN
+    int "Feedback cooldown (ms)"
+    default 160
+
+endif # ZMK_POINTER_2S_MIXER
+
+config ZMK_ACCEL_CURVE
+    bool "Acceleration curves"
+    default n
+    depends on INPUT
+
+config ZMK_INPUT_PROCESSOR_REPORT_RATE_LIMIT
+    bool "Report rate limiter"
+    default n
+
+config ZMK_INPUT_PROCESSOR_REPORT_RATE_LIMIT_DEFAULT
+    int "Default rate limit in ms"
+    default 8
+
+config ZMK_SCROLL_SCALER
+    bool "Scroll scaler with internal remainder tracking"
+    default n
+
+config ZMK_INPUT_PROCESSOR_DROP_ZERO
+    bool "Drop zero-value input events"
+    default n
+
+endif # ZMK_POINTING
