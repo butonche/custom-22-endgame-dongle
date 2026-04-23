@@ -76,7 +76,7 @@
 
 	/*
 	 * Input-split: captures mixer output, processes fully, compresses, sends over BLE.
-	 * Chain: scroll_scaler → pointer_accel → scroll_accel → rate_limit → drop_zero → xyz_compress
+	 * Chain: scroll_scaler → pointer_accel → scroll_accel → rate_limit → xyz_compress
 	 * Matches original firmware order (curves before rate limit).
 	 * Drop-zero prevents empty events from being sent over BLE.
 	 */
@@ -92,7 +92,6 @@
 			<&zip_pointer_accel>,
 			<&zip_scroll_accel>,
 			<&zip_ble_report_rate_limit>,
-			<&zip_drop_zero>,
 			<&zip_xyz>;
 		};
 	};
