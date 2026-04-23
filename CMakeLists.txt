@@ -1,6 +1,5 @@
 # Stripped efogdev input processors + custom scroll scaler.
 # Mixer, accel curves, scroll scaler, rate limiter run on peripheral.
-# Other processors available for dongle if needed.
 
 zephyr_include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
 
@@ -18,8 +17,4 @@ endif()
 
 if(CONFIG_ZMK_SCROLL_SCALER)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/scroll_scaler.c)
-endif()
-
-if(CONFIG_ZMK_INPUT_PROCESSOR_DROP_ZERO)
-  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/input_processor_drop_zero.c)
 endif()

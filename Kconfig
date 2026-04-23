@@ -149,8 +149,4 @@ config ZMK_SCROLL_SCALER
     bool "Scroll scaler with internal remainder tracking"
     default n
 
-config ZMK_INPUT_PROCESSOR_DROP_ZERO
-    bool "Drop zero-value input events"
-    default n
-
 endif # ZMK_POINTING

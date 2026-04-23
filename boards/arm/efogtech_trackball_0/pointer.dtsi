@@ -1,7 +1,7 @@
 /*
  * Trackball peripheral pointer configuration.
- * Full processing chain runs on peripheral (matching original firmware).
- * XYZ compression as last step before BLE transport.
+ * Full processing chain runs on peripheral, XYZ compressed before BLE.
+ * Dongle only decompresses.
  */
 
 #include <dt-bindings/zmk/pointing.h>
@@ -68,17 +68,9 @@
 		limit-ble-only;
 	};
 
-	/* Drop-zero filter — prevents empty events from going over BLE */
-	zip_drop_zero: zip_drop_zero {
-		compatible = "zmk,input-processor-drop-zero";
-		#input-processor-cells = <0>;
-	};
-
 	/*
 	 * Input-split: captures mixer output, processes fully, compresses, sends over BLE.
 	 * Chain: scroll_scaler → pointer_accel → scroll_accel → rate_limit → xyz_compress
-	 * Matches original firmware order (curves before rate limit).
-	 * Drop-zero prevents empty events from being sent over BLE.
 	 */
 	split_inputs {
 		#address-cells = <1>;
