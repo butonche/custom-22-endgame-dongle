@@ -31,6 +31,9 @@ config ZMK_BLE
 
 if ZMK_BLE
 
+config ZMK_SPLIT_BLE
+    default y
+
 config ZMK_BLE_EXPERIMENTAL_CONN
     default y
 
@@ -42,9 +45,6 @@ config ZMK_BLE_EXPERIMENTAL_FEATURES
 
 config ZMK_BLE_PASSKEY_ENTRY
     default n
-
-config BT_CTLR_TX_PWR_PLUS_8
-    default y
 
 config BT_CTLR_CONN_RSSI
     default y
