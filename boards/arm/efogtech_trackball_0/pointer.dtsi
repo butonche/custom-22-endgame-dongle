@@ -46,7 +46,7 @@
 		points = <36>;
 		event-codes = <INPUT_REL_X INPUT_REL_Y>;
 		curve-data = <0 0 116 41 10 32 16 39
-		              116 41 4809 100 782 41 171 100>;
+		116 41 4809 100 782 41 171 100>;
 	};
 
 	/* Scroll acceleration curve — amplifies scroll after 1/10 scaling */
@@ -57,7 +57,7 @@
 		points = <24>;
 		event-codes = <INPUT_REL_WHEEL INPUT_REL_HWHEEL>;
 		curve-data = <0 0 102 100 10 38 10 100
-		              102 100 5702 406 2271 89 544 355>;
+		102 100 5702 406 2271 89 544 355>;
 	};
 
 	/* Report rate limiter — throttles BLE event rate */
@@ -70,7 +70,9 @@
 
 	/*
 	 * Input-split: captures mixer output, processes fully, compresses, sends over BLE.
-	 * Chain: scroll_scaler → pointer_accel → scroll_accel → rate_limit → xyz_compress
+	 * Chain: rate_limit → scroll_scaler → pointer_accel → scroll_accel → xyz_compress
+	 * Rate limiter first: batches raw events into 8ms windows so accel curves
+	 * receive larger accumulated values instead of many tiny ones.
 	 */
 	split_inputs {
 		#address-cells = <1>;
@@ -80,11 +82,11 @@
 			reg = <0>;
 			device = <&zip_2s_mixer>;
 			input-processors =
-				<&zip_scroll_scaler_int 1 10>,
-				<&zip_pointer_accel>,
-				<&zip_scroll_accel>,
-				<&zip_ble_report_rate_limit>,
-				<&zip_xyz>;
+			<&zip_ble_report_rate_limit>,
+			<&zip_scroll_scaler_int 1 10>,
+			<&zip_pointer_accel>,
+			<&zip_scroll_accel>,
+			<&zip_xyz>;
 		};
 	};
 
