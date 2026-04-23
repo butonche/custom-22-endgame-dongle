@@ -524,7 +524,7 @@ static int data_init(const struct device *dev) {
     data->ema_initialized = false;
 
 #if IS_ENABLED(CONFIG_POINTER_2S_MIXER_SMA_EN)
-    data->sma_enabled = false;
+    data->sma_enabled = true;
     data->sma_window_size = CONFIG_POINTER_2S_MIXER_SMA_WINDOW_SIZE;
 #endif
 
