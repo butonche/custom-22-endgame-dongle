@@ -68,11 +68,17 @@
 		limit-ble-only;
 	};
 
+	/* Drop-zero filter — prevents empty events from going over BLE */
+	zip_drop_zero: zip_drop_zero {
+		compatible = "zmk,input-processor-drop-zero";
+		#input-processor-cells = <0>;
+	};
+
 	/*
 	 * Input-split: captures mixer output, processes fully, compresses, sends over BLE.
-	 * Chain: rate_limit → scroll_scaler → pointer_accel → scroll_accel → xyz_compress
-	 * Rate limiter first: batches raw events into 8ms windows so accel curves
-	 * receive larger accumulated values instead of many tiny ones.
+	 * Chain: scroll_scaler → pointer_accel → scroll_accel → rate_limit → drop_zero → xyz_compress
+	 * Matches original firmware order (curves before rate limit).
+	 * Drop-zero prevents empty events from being sent over BLE.
 	 */
 	split_inputs {
 		#address-cells = <1>;
@@ -82,10 +88,11 @@
 			reg = <0>;
 			device = <&zip_2s_mixer>;
 			input-processors =
-			<&zip_ble_report_rate_limit>,
 			<&zip_scroll_scaler_int 1 10>,
 			<&zip_pointer_accel>,
 			<&zip_scroll_accel>,
+			<&zip_ble_report_rate_limit>,
+			<&zip_drop_zero>,
 			<&zip_xyz>;
 		};
 	};

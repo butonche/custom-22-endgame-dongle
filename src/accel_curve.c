@@ -232,7 +232,7 @@ static int sy_init(const struct device *dev) {
         const uint8_t base = i * 8;
         if (i == 0) {
             data->curves[i] = (struct curve){
-                .start = {0, 0},
+                .start = {0, 10},
                 .end   = {cd[base + 2], cd[base + 3]},
                 .cp1   = {cd[base + 4], cd[base + 5]},
                 .cp2   = {cd[base + 6], cd[base + 7]},
