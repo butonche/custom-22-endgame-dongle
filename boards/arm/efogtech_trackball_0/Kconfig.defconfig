@@ -1,4 +1,4 @@
-# Electronut Labs Papyr board configuration
+# Efogtech Endgame Trackball board configuration
 
 # Copyright (c) 2020 The ZMK Contributors
 # SPDX-License-Identifier: MIT
@@ -28,5 +28,69 @@ config BT_CTLR
 
 config ZMK_BLE
 	default y
+
+if ZMK_BLE
+
+config ZMK_BLE_EXPERIMENTAL_CONN
+    default y
+
+config ZMK_BLE_EXPERIMENTAL_SEC
+    default y
+
+config ZMK_BLE_EXPERIMENTAL_FEATURES
+    default y
+
+config ZMK_BLE_PASSKEY_ENTRY
+    default n
+
+config BT_CTLR_TX_PWR_PLUS_8
+    default y
+
+config BT_CTLR_CONN_RSSI
+    default y
+
+config BT_CTLR_TX_PWR_DYNAMIC_CONTROL
+    default y
+
+config BT_CTLR_PHY_2M
+    default y
+
+config BT_PERIPHERAL_PREF_MAX_INT
+    default 6
+
+config BT_TPS
+    default y
+
+config BT_GATT_ENFORCE_SUBSCRIPTION
+    default y
+
+config BT_MAX_CONN
+    default 5
+
+config BT_MAX_PAIRED
+    default 5
+
+config ZMK_BLE_MOUSE_REPORT_QUEUE_SIZE
+    default 1
+
+config ZMK_BLE_THREAD_STACK_SIZE
+    default 1360
+
+config ZMK_BLE_THREAD_PRIORITY
+    default 2
+
+config BT_L2CAP_TX_MTU
+    default 65
+
+config BT_L2CAP_TX_FRAG_COUNT
+    default 3
+
+config BT_BUF_ACL_RX_SIZE
+    default 69
+
+config BT_BUF_ACL_TX_SIZE
+    default 72
+
+endif # ZMK_BLE
 
 endif # BOARD_EFOGTECH_TRBL_52833
