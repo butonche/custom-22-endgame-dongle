@@ -150,8 +150,11 @@ static void relay_discover_work_handler(struct k_work *work) {
         CONTAINER_OF(dwork, struct sixdof_relay_slot, discover_work);
 
     if (!slot->conn) {
+        LOG_WRN("6dof relay: discover work fired but conn is NULL");
         return; /* disconnected before timer fired */
     }
+
+    LOG_DBG("6dof relay: starting service discovery");
 
     slot->discover_params.uuid = &sixdof_relay_svc_uuid.uuid;
     slot->discover_params.func = svc_discovery_cb;
@@ -194,6 +197,9 @@ static void on_connected(struct bt_conn *conn, uint8_t err) {
     slot->conn = conn;
     slot->char_handle = 0;
 
+    LOG_DBG("6dof relay: connected slot %d, scheduling discovery in %dms",
+            (int)(slot - slots), RELAY_DISCOVER_DELAY_MS);
+
     /* Delay discovery to let ZMK's split service discovery complete first */
     k_work_schedule(&slot->discover_work, K_MSEC(RELAY_DISCOVER_DELAY_MS));
 }
@@ -218,6 +224,7 @@ static void send_sixdof_mode(bool active) {
     static uint8_t payload;
     payload = active ? 1 : 0;
 
+    int sent = 0;
     for (int i = 0; i < ZMK_SPLIT_BLE_PERIPHERAL_COUNT; i++) {
         if (!slots[i].conn || !slots[i].char_handle) {
             continue;
@@ -229,7 +236,11 @@ static void send_sixdof_mode(bool active) {
             LOG_ERR("6dof relay: write failed slot %d (%d)", i, err);
         } else {
             LOG_DBG("6dof relay: sent mode=%d to slot %d", active, i);
+            sent++;
         }
+    }
+    if (sent == 0) {
+        LOG_WRN("6dof relay: no slots ready (mode=%d)", active);
     }
 }
 
