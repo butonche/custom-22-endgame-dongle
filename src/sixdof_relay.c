@@ -67,7 +67,7 @@ BT_GATT_SERVICE_DEFINE(
  * discovery which runs immediately on connect. Zephyr only supports one
  * outstanding bt_gatt_discover() per connection at a time.
  */
-#define RELAY_DISCOVER_DELAY_MS 10000
+#define RELAY_DISCOVER_DELAY_MS 0
 
 struct sixdof_relay_slot {
     struct bt_conn *conn;
@@ -151,8 +151,7 @@ static void relay_discover_work_handler(struct k_work *work) {
         CONTAINER_OF(dwork, struct sixdof_relay_slot, discover_work);
 
     if (!slot->conn) {
-        LOG_WRN("6dof relay: discover work fired but conn is NULL");
-        return; /* disconnected before timer fired */
+        return; /* disconnected */
     }
 
     if (slot->char_handle != 0) {
@@ -169,11 +168,12 @@ static void relay_discover_work_handler(struct k_work *work) {
 
     int ret = bt_gatt_discover(slot->conn, &slot->discover_params);
     if (ret) {
-        LOG_ERR("6dof relay: service discover failed (%d)", ret);
+        LOG_WRN("6dof relay: discover returned %d, retry in 5s", ret);
+        k_work_schedule(dwork, K_MSEC(5000));
+    } else {
+        /* If callback doesn't set char_handle within 3s, retry */
+        k_work_schedule(dwork, K_MSEC(3000));
     }
-
-    /* Retry in 5s if discovery callback doesn't fire */
-    k_work_schedule(dwork, K_MSEC(5000));
 }
 
 /* ── Connection callbacks ────────────────────────────────────────────────── */
