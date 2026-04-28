@@ -170,7 +170,7 @@ config ZMK_6DOF_RELAY
 config ZMK_6DOF_LAYER
     int "Keymap layer number that activates 6DOF mode"
     default 4
-    depends on ZMK_6DOF
+    depends on ZMK_6DOF || ZMK_6DOF_RELAY
 
 config ZMK_6DOF_SCALE
     int "6DOF rotation output scale factor"

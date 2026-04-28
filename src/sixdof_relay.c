@@ -26,7 +26,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 /* ──────────────────────────────────────────────────────────────────────────
  * PERIPHERAL SIDE
  * ────────────────────────────────────────────────────────────────────────── */
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_PERIPHERAL)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 static uint8_t sixdof_mode_value;
 
@@ -52,7 +52,7 @@ BT_GATT_SERVICE_DEFINE(
                            NULL, sixdof_relay_write, &sixdof_mode_value),
 );
 
-#endif /* CONFIG_ZMK_SPLIT_BLE_PERIPHERAL */
+#endif /* ZMK_SPLIT && !ZMK_SPLIT_ROLE_CENTRAL */
 
 /* ──────────────────────────────────────────────────────────────────────────
  * CENTRAL / DONGLE SIDE
