@@ -149,4 +149,23 @@ config ZMK_SCROLL_SCALER
     bool "Scroll scaler with internal remainder tracking"
     default n
 
+config ZMK_6DOF
+    bool "6DOF SpaceMouse mode via dual-sensor rotation extraction"
+    default n
+    depends on ZMK_POINTER_2S_MIXER
+    help
+      Extracts Rx/Ry/Rz from dual trackball sensors using omega = (P x V) / |P|^2.
+      Activates via keymap layer 5. Requires spacenavd on Linux host.
+
+config ZMK_6DOF_SCALE
+    int "6DOF rotation output scale factor"
+    default 100
+    range 1 1000
+    depends on ZMK_6DOF
+
+config ZMK_INPUT_PROCESSOR_6DOF
+    bool "6DOF dongle-side input processor (X/Y/Z -> RX/RY/RZ remapper)"
+    default n
+    depends on ZMK_6DOF
+
 endif # ZMK_POINTING

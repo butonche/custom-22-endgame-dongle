@@ -22,7 +22,7 @@
 
 // CONFIG
 #define COMBO_TIMEOUT 200
-#define COMBO_LAYERS 0 1 2 3 4
+#define COMBO_LAYERS 0 1 2 3 4 5
 #define STICKY_TIMEOUT 500
 
 // TRACKBALL LAYERS
@@ -31,6 +31,7 @@
 #define LAYER_SCROLL       2
 #define LAYER_SNIPE        3
 #define LAYER_USER         4
+#define LAYER_6DOF         5
 
 // LEFT SIDE (col 0-10, no offset)
 #define TLI 3
@@ -144,7 +145,7 @@
         &ltmkp LAYER_SNIPE ENTER  &ltmkp LAYER_SCROLL ESC
         &mkp MCLK                 &cdch LAYER_SCROLL 0
         &mkp LCLK                 &mkp RCLK
-        &ltm LAYER_EXTRAS MB4     &ltm LAYER_USER MB5
+        &ltm LAYER_EXTRAS MB4     &mo LAYER_6DOF
         /* Trackball encoders 30-33 */
         &kp C_VOL_UP  &kp LC(TAB)  &kp C_VOL_DN  &kp LC(LS(TAB))
       >;
@@ -191,6 +192,19 @@
 
     user_layer {
       display-name = "User";
+      sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN &inc_dec_kp C_VOL_UP C_VOL_DN>;
+      bindings = <
+        KB_TRANS
+        &trans  &trans
+        &trans  &trans
+        &trans  &trans
+        &trans  &trans
+        &kp C_VOL_UP  &kp LC(TAB)  &kp C_VOL_DN  &kp LC(LS(TAB))
+      >;
+    };
+
+    sixdof_layer {
+      display-name = "6DOF";
       sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN &inc_dec_kp C_VOL_UP C_VOL_DN>;
       bindings = <
         KB_TRANS

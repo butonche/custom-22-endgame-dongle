@@ -1,0 +1,5 @@
+description: 6DOF input processor — remaps X/Y/Z events to RX/RY/RZ on dongle side
+
+compatible: "zmk,input-processor-6dof"
+
+include: ip_zero_param.yaml

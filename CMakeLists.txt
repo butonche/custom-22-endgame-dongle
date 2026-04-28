@@ -18,3 +18,11 @@ endif()
 if(CONFIG_ZMK_SCROLL_SCALER)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/scroll_scaler.c)
 endif()
+
+if(CONFIG_ZMK_6DOF)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/sixdof_mode.c)
+endif()
+
+if(CONFIG_ZMK_INPUT_PROCESSOR_6DOF)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/input_processor_6dof.c)
+endif()

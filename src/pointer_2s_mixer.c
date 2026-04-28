@@ -8,6 +8,10 @@
 #include <zephyr/logging/log.h>
 #include <zmk/keymap.h>
 
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+#include <zmk/sixdof_mode.h>
+#endif
+
 #if IS_ENABLED(CONFIG_SETTINGS)
 #ifndef CONFIG_SETTINGS_RUNTIME
 #define CONFIG_SETTINGS_RUNTIME true
@@ -60,6 +64,11 @@ struct zip_pointer_2s_mixer_data {
 
     // pre-calculated
     float rotation_matrix1[3][3], rotation_matrix2[3][3];
+
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+    float surface_p1[3], surface_p2[3]; // sphere-surface positions (ball-center origin)
+    float rx_remainder, ry_remainder, rz_remainder;
+#endif
 
     uint32_t last_twist, debounce_start; // to filter out single events as they are probably accidental
     int8_t last_twist_direction; // to filter out first event in the opposite direction
@@ -125,11 +134,21 @@ static int process_and_report(const struct device *dev) {
     const uint32_t now = (uint32_t) k_uptime_get();
     uint32_t dt = now - data->last_rpt_time;
     float rotated_x = 0, rotated_y = 0;
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+    float v1x = 0, v1y = 0, v2x = 0, v2y = 0;
+    bool have_s1 = false, have_s2 = false;
+#endif
 
     if (data->values.s1_x != 0 || data->values.s1_y != 0) {
         apply_rotation(data->rotation_matrix1, data->values.s1_x, data->values.s1_y, &rotated_x, &rotated_y);
         data->twist_values.s1_x += rotated_x;
         data->twist_values.s1_y += rotated_y;
+
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+        v1x = rotated_x;
+        v1y = rotated_y;
+        have_s1 = true;
+#endif
 
         apply_coef(data->move_coef, &rotated_x, &rotated_y);
         if (dt > CONFIG_POINTER_2S_MIXER_REMAINDER_TTL) {
@@ -150,6 +169,12 @@ static int process_and_report(const struct device *dev) {
         data->twist_values.s2_x += rotated_x;
         data->twist_values.s2_y += rotated_y;
 
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+        v2x = rotated_x;
+        v2y = rotated_y;
+        have_s2 = true;
+#endif
+
         apply_coef(data->move_coef, &rotated_x, &rotated_y);
         if (dt > CONFIG_POINTER_2S_MIXER_REMAINDER_TTL) {
             data->rpt_x_remainder = rotated_x;
@@ -162,6 +187,88 @@ static int process_and_report(const struct device *dev) {
         data->values.s2_x = 0;
         data->values.s2_y = 0;
     }
+
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+    if (sixdof_is_active() && (have_s1 || have_s2)) {
+        // omega = (P x V) / |P|^2  for each sensor, V_z = 0
+        float rx_sum = 0, ry_sum = 0, rz_sum = 0;
+        int count = 0;
+
+        if (have_s1) {
+            const float p1x = data->surface_p1[0];
+            const float p1y = data->surface_p1[1];
+            const float p1z = data->surface_p1[2];
+            const float p1_sq = p1x*p1x + p1y*p1y + p1z*p1z;
+            if (p1_sq > 1e-6f) {
+                // P1 x V1 (V1z = 0):
+                rx_sum += (-p1z * v1y) / p1_sq;
+                ry_sum += ( p1z * v1x) / p1_sq;
+                rz_sum += ( p1x * v1y - p1y * v1x) / p1_sq;
+                count++;
+            }
+        }
+
+        if (have_s2) {
+            const float p2x = data->surface_p2[0];
+            const float p2y = data->surface_p2[1];
+            const float p2z = data->surface_p2[2];
+            const float p2_sq = p2x*p2x + p2y*p2y + p2z*p2z;
+            if (p2_sq > 1e-6f) {
+                rx_sum += (-p2z * v2y) / p2_sq;
+                ry_sum += ( p2z * v2x) / p2_sq;
+                rz_sum += ( p2x * v2y - p2y * v2x) / p2_sq;
+                count++;
+            }
+        }
+
+        if (count > 0) {
+            const float scale = (float) CONFIG_ZMK_6DOF_SCALE;
+            data->rx_remainder += (rx_sum / count) * scale;
+            data->ry_remainder += (ry_sum / count) * scale;
+            data->rz_remainder += (rz_sum / count) * scale;
+        }
+
+        const int16_t rx_int = (int16_t) data->rx_remainder;
+        const int16_t ry_int = (int16_t) data->ry_remainder;
+        const int16_t rz_int = (int16_t) data->rz_remainder;
+        data->rx_remainder -= rx_int;
+        data->ry_remainder -= ry_int;
+        data->rz_remainder -= rz_int;
+
+        const bool have_rx = rx_int != 0;
+        const bool have_ry = ry_int != 0;
+        const bool have_rz = rz_int != 0;
+
+        if (have_rx || have_ry || have_rz) {
+            LOG_DBG("6dof: rx=%d ry=%d rz=%d", rx_int, ry_int, rz_int);
+        }
+
+        if (have_rx) {
+            input_report(dev, INPUT_EV_REL, INPUT_REL_RX, rx_int, !(have_ry || have_rz), K_NO_WAIT);
+        }
+        if (have_ry) {
+            input_report(dev, INPUT_EV_REL, INPUT_REL_RY, ry_int, !have_rz, K_NO_WAIT);
+        }
+        if (have_rz) {
+            input_report(dev, INPUT_EV_REL, INPUT_REL_RZ, rz_int, true, K_NO_WAIT);
+        }
+
+        // suppress normal pointer output in 6DOF mode
+        data->rpt_x_remainder = 0;
+        data->rpt_y_remainder = 0;
+        data->last_rpt_time = now;
+        return 0;
+    }
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+    if (!sixdof_is_active()) {
+        // clear 6DOF remainders on first call after mode deactivation
+        data->rx_remainder = 0.0f;
+        data->ry_remainder = 0.0f;
+        data->rz_remainder = 0.0f;
+    }
+#endif
 
     if (IS_ENABLED(CONFIG_POINTER_2S_MIXER_SCROLL_DISABLES_POINTER) &&
         now - data->last_rpt_time_twist < (uint32_t)CONFIG_POINTER_2S_MIXER_POINTER_AFTER_SCROLL_ACTIVATION) {
@@ -439,7 +546,11 @@ static int sy_handle_event(const struct device *dev, struct input_event *event, 
         process_and_report(dev);
     }
 
-    if (data->twist_enabled && now - data->last_rpt_time_twist > config->sync_scroll_report_ms) {
+    if (data->twist_enabled && now - data->last_rpt_time_twist > config->sync_scroll_report_ms
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+        && !sixdof_is_active()
+#endif
+    ) {
         const float twist_float = calculate_twist(dev) * data->twist_coef;
         if (now - data->last_twist > CONFIG_POINTER_2S_MIXER_TWIST_REMAINDER_TTL) {
             data->rpt_twist_remainder = twist_float;
@@ -513,6 +624,18 @@ static int data_init(const struct device *dev) {
 
     calculate_rotation_matrix(surface_p1[0], surface_p1[1], surface_p1[2], 0, 0, -radius, data->rotation_matrix1);
     calculate_rotation_matrix(surface_p2[0], surface_p2[1], surface_p2[2], 0, 0, -radius, data->rotation_matrix2);
+
+#if IS_ENABLED(CONFIG_ZMK_6DOF)
+    data->surface_p1[0] = surface_p1[0];
+    data->surface_p1[1] = surface_p1[1];
+    data->surface_p1[2] = surface_p1[2];
+    data->surface_p2[0] = surface_p2[0];
+    data->surface_p2[1] = surface_p2[1];
+    data->surface_p2[2] = surface_p2[2];
+    data->rx_remainder = 0.0f;
+    data->ry_remainder = 0.0f;
+    data->rz_remainder = 0.0f;
+#endif
 
     data->last_twist_direction = -1;
     data->move_coef = (float) CONFIG_POINTER_2S_MIXER_DEFAULT_MOVE_COEF / 100;

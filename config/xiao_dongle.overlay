@@ -11,6 +11,7 @@
 #define SNIPE_DIVISOR      4
 #define LAYER_SCROLL       2
 #define LAYER_SNIPE        3
+#define LAYER_6DOF         5
 
 / {
     split_inputs {
@@ -21,6 +22,11 @@
             compatible = "zmk,input-split";
             reg = <0>;
         };
+    };
+
+    sixdof_output: sixdof_output {
+        compatible = "zmk,input-processor-6dof";
+        #input-processor-cells = <0>;
     };
 
     /*
@@ -44,6 +50,12 @@
             layers = <LAYER_SNIPE>;
             input-processors = <&zip_zxy>,
                                <&zip_xy_scaler SNIPE_MULTIPLIER SNIPE_DIVISOR>;
+        };
+
+        sixdof {
+            layers = <LAYER_6DOF>;
+            input-processors = <&zip_zxy>,
+                               <&sixdof_output>;
         };
     };
 
