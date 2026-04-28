@@ -67,7 +67,7 @@ BT_GATT_SERVICE_DEFINE(
  * discovery which runs immediately on connect. Zephyr only supports one
  * outstanding bt_gatt_discover() per connection at a time.
  */
-#define RELAY_DISCOVER_DELAY_MS 5000
+#define RELAY_DISCOVER_DELAY_MS 10000
 
 struct sixdof_relay_slot {
     struct bt_conn *conn;
@@ -103,6 +103,7 @@ static uint8_t chrc_discovery_cb(struct bt_conn *conn, const struct bt_gatt_attr
     const struct bt_uuid *uuid = ((struct bt_gatt_chrc *)attr->user_data)->uuid;
     if (bt_uuid_cmp(uuid, BT_UUID_DECLARE_128(ZMK_6DOF_RELAY_CHAR_MODE_UUID)) == 0) {
         slot->char_handle = bt_gatt_attr_value_handle(attr);
+        k_work_cancel_delayable(&slot->discover_work);
         LOG_DBG("6dof relay: found char handle %u", slot->char_handle);
         return BT_GATT_ITER_STOP;
     }
@@ -154,6 +155,10 @@ static void relay_discover_work_handler(struct k_work *work) {
         return; /* disconnected before timer fired */
     }
 
+    if (slot->char_handle != 0) {
+        return; /* already discovered */
+    }
+
     LOG_DBG("6dof relay: starting service discovery");
 
     slot->discover_params.uuid = &sixdof_relay_svc_uuid.uuid;
@@ -166,6 +171,9 @@ static void relay_discover_work_handler(struct k_work *work) {
     if (ret) {
         LOG_ERR("6dof relay: service discover failed (%d)", ret);
     }
+
+    /* Retry in 5s if discovery callback doesn't fire */
+    k_work_schedule(dwork, K_MSEC(5000));
 }
 
 /* ── Connection callbacks ────────────────────────────────────────────────── */

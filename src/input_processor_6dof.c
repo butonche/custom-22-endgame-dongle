@@ -4,6 +4,7 @@
  * joystick HID endpoint as RX/RY/RZ axes. Suppresses normal mouse output
  * by zeroing the event after forwarding.
  *
+ * Rate-limits USB reports to avoid overwhelming the endpoint buffer.
  * Requires CONFIG_ZMK_HID_JOYSTICK=y (zmk-hid-joystick module).
  */
 
@@ -22,8 +23,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/hid-joystick/hid.h>
 #endif
 
+/* Minimum interval between USB joystick reports (ms) */
+#define SIXDOF_REPORT_INTERVAL_MS 16
+
 struct sixdof_proc_data {
     int16_t rx, ry, rz;
+    int64_t last_report_time;
 };
 
 static int sixdof_handle_event(const struct device *dev, struct input_event *event,
@@ -51,14 +56,26 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
 
     if (event->sync) {
 #if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
-        LOG_DBG("6dof_proc: rx=%d ry=%d rz=%d", data->rx, data->ry, data->rz);
-        zmk_hid_joy2_movement_set(0, 0, 0, data->rx, data->ry, data->rz);
-        zmk_endpoints_send_joystick_report_alt();
-        zmk_hid_joy2_movement_set(0, 0, 0, 0, 0, 0);
-#endif
+        int64_t now = k_uptime_get();
+        if ((data->rx != 0 || data->ry != 0 || data->rz != 0) &&
+            (now - data->last_report_time >= SIXDOF_REPORT_INTERVAL_MS)) {
+            LOG_DBG("6dof_proc: rx=%d ry=%d rz=%d", data->rx, data->ry, data->rz);
+            zmk_hid_joy2_movement_set(0, 0, 0, data->rx, data->ry, data->rz);
+            int err = zmk_endpoints_send_joystick_report_alt();
+            if (err) {
+                LOG_WRN("6dof_proc: send failed (%d)", err);
+            }
+            zmk_hid_joy2_movement_set(0, 0, 0, 0, 0, 0);
+            data->last_report_time = now;
+            data->rx = 0;
+            data->ry = 0;
+            data->rz = 0;
+        }
+#else
         data->rx = 0;
         data->ry = 0;
         data->rz = 0;
+#endif
     }
 
     /* Suppress normal mouse output */
