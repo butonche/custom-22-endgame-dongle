@@ -168,4 +168,12 @@ config ZMK_INPUT_PROCESSOR_6DOF
     default n
     depends on ZMK_POINTING
 
+config ZMK_INPUT_MOCK_SENSOR
+    bool "Mock input sensor for native_sim tests"
+    default n
+    depends on INPUT
+    help
+      Emits a DTS-specified sequence of REL_X/REL_Y event pairs at boot.
+      Use two instances to simulate dual-sensor trackball input in tests.
+
 endif # ZMK_POINTING

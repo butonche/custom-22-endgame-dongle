@@ -145,7 +145,7 @@
         &ltmkp LAYER_SNIPE ENTER  &ltmkp LAYER_SCROLL ESC
         &mkp MCLK                 &cdch LAYER_SCROLL 0
         &mkp LCLK                 &mkp RCLK
-        &ltm LAYER_EXTRAS MB4     &mo LAYER_6DOF
+        &ltm LAYER_EXTRAS MB4     &tog LAYER_6DOF
         /* Trackball encoders 30-33 */
         &kp C_VOL_UP  &kp LC(TAB)  &kp C_VOL_DN  &kp LC(LS(TAB))
       >;

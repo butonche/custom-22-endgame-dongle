@@ -1,0 +1,22 @@
+description: |
+  Mock input sensor that emits a fixed sequence of REL_X/REL_Y event pairs
+  at boot, driven by a k_work_delayable chain. Intended for ZMK native_sim
+  tests of dual-sensor input processors.
+
+  Each entry in the 'events' array is a triplet: dx dy delay_ms.
+  The delay is applied BEFORE that event fires (i.e. the first event fires
+  after the first delay_ms, giving the system time to initialise).
+
+  Example:
+    events = <10 (-5) 20   (-10) 5 20   0 0 0>;
+    // fires dx=10,dy=-5 at t=20ms, dx=-10,dy=5 at t=40ms, then stops
+
+compatible: "zmk,input-mock-sensor"
+
+properties:
+  events:
+    type: array
+    required: true
+    description: |
+      Flat array of (dx, dy, delay_ms) triplets.
+      delay_ms is the wait before this event fires.

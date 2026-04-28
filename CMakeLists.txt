@@ -26,3 +26,7 @@ endif()
 if(CONFIG_ZMK_INPUT_PROCESSOR_6DOF)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/input_processor_6dof.c)
 endif()
+
+if(CONFIG_ZMK_INPUT_MOCK_SENSOR)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/input_mock_sensor.c)
+endif()

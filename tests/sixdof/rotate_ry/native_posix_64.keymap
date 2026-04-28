@@ -1,0 +1,96 @@
+/*
+ * 6DOF test: pure X-motion on sensor1 produces non-zero Rx/Ry/Rz rotation.
+ *
+ * Sensor1 DT pos [0x31,0x4B,0x2D] with r=102.
+ * After mixer rotation matrix: surface_p1 ≈ (-63, -42, -67).
+ * Motion: dx=100, dy=0 → after rotation matrix and cross-product:
+ *   expected: rx=-10 ry=-49 rz=40  (verified from actual run)
+ *
+ * ENSURE_SYNC disabled so sensor1's events reach process_and_report
+ * without waiting for sensor2 to arrive in the same window.
+ * sensor2 fires with dx=0 dy=0 (no contribution).
+ * Layer 6DOF is held via &mo LAYER_6DOF at key position 1.
+ */
+
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/kscan_mock.h>
+#include <dt-bindings/zmk/pointing.h>
+#include <dt-bindings/zmk/p2sm.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+#define LAYER_6DOF 5
+
+/ {
+    /* Two mock sensors — mirror the real hardware listener setup */
+    mock_s1: mock_sensor_1 {
+        compatible = "zmk,input-mock-sensor";
+        /* (dx dy delay_ms): wait 50ms, then fire dx=100 dy=0 */
+        events = <100 0 50>;
+    };
+
+    mock_s2: mock_sensor_2 {
+        compatible = "zmk,input-mock-sensor";
+        /* fire same time as s1 (50ms), zero motion — just to satisfy sync */
+        events = <0 0 50>;
+    };
+
+    s1_listener: s1_listener {
+        compatible = "zmk,input-listener";
+        device = <&mock_s1>;
+        input-processors = <&zip_2s_mixer INPUT_MIXER_SENSOR1>;
+    };
+
+    s2_listener: s2_listener {
+        compatible = "zmk,input-listener";
+        device = <&mock_s2>;
+        input-processors = <&zip_2s_mixer INPUT_MIXER_SENSOR2>;
+    };
+
+    zip_2s_mixer: zip_2s_mixer {
+        compatible = "zmk,pointer-2s-mixer";
+        #input-processor-cells = <1>;
+        status = "okay";
+        sync-report-ms = <0>;
+        sync-scroll-report-ms = <8>;
+        twist-thres = <3>;
+        twist-interference-thres = <200>;
+        ball-radius = <102>;
+        sensor1-pos = [31 4B 2D];
+        sensor2-pos = [C1 3C 2D];
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &none        &mo LAYER_6DOF
+                &none        &none
+            >;
+        };
+
+        extras_layer   { bindings = <&trans &trans &trans &trans>; };
+        scroll_layer   { bindings = <&trans &trans &trans &trans>; };
+        snipe_layer    { bindings = <&trans &trans &trans &trans>; };
+        user_layer     { bindings = <&trans &trans &trans &trans>; };
+
+        sixdof_layer {
+            bindings = <
+                &trans &trans
+                &trans &trans
+            >;
+        };
+    };
+};
+
+/*
+ * Hold key (0,1) = &mo LAYER_6DOF, wait 30ms (sensors fire at 50ms).
+ * Release key after sensors have fired (200ms total).
+ */
+&kscan {
+    events = <
+        ZMK_MOCK_PRESS(0,1,30)      /* hold 6DOF layer — wait 30ms */
+        ZMK_MOCK_RELEASE(0,1,200)   /* release after sensors have fired */
+    >;
+};
