@@ -15,10 +15,10 @@ bool sixdof_is_active(void)
 
 /*
  * On builds with CONFIG_ZMK_6DOF_RELAY, the relay's layer_state_listener sets the flag.
- * On test builds (ZMK_6DOF without relay), subscribe to layer_state_changed directly.
- * On settings_reset builds (no keymap/event system), nothing sets the flag — that's fine.
+ * On other builds with a keymap (tests, standalone), subscribe to layer_state_changed.
+ * Settings_reset builds have neither — the flag stays false, which is fine.
  */
-#if !defined(CONFIG_ZMK_6DOF_RELAY) && defined(CONFIG_ZMK_KEYMAP)
+#if !defined(CONFIG_ZMK_6DOF_RELAY) && defined(CONFIG_ZMK_6DOF_LAYER)
 #include <zmk/event_manager.h>
 #include <zmk/events/layer_state_changed.h>
 
