@@ -1,11 +1,11 @@
 /*
  * Dongle-side 6DOF input processor.
- * Forwards decompressed X/Y/Z rotation events from the peripheral to the
- * joystick HID endpoint as RX/RY/RZ axes. Suppresses normal mouse output
- * by zeroing the event after forwarding.
+ * Always in the input-listener processor chain. When 6DOF layer is active,
+ * forwards X/Y/Z as RX/RY/RZ to the joystick HID endpoint and suppresses
+ * normal mouse output. When inactive, passes events through unchanged.
  *
  * Rate-limits USB reports to avoid overwhelming the endpoint buffer.
- * Requires CONFIG_ZMK_HID_JOYSTICK=y (zmk-hid-joystick module).
+ * Requires CONFIG_ZMK_HID_JOYSTICK=y (bundled joystick HID module).
  */
 
 #define DT_DRV_COMPAT zmk_input_processor_6dof
@@ -17,6 +17,8 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
+
+#include <zmk/keymap.h>
 
 #if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
 #include <zmk/hid-joystick/endpoints.h>
@@ -35,6 +37,11 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
                                uint32_t param1, uint32_t param2,
                                struct zmk_input_processor_state *state) {
     if (event->type != INPUT_EV_REL) {
+        return ZMK_INPUT_PROC_CONTINUE;
+    }
+
+    /* Only intercept when 6DOF layer is active */
+    if (!zmk_keymap_layer_active(CONFIG_ZMK_6DOF_LAYER)) {
         return ZMK_INPUT_PROC_CONTINUE;
     }
 

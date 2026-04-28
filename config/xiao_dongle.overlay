@@ -36,7 +36,7 @@
     trackball_listener: trackball_listener {
         compatible = "zmk,input-listener";
         device = <&trackball_split>;
-        input-processors = <&zip_zxy>;
+        input-processors = <&zip_zxy>, <&sixdof_output>;
 
         scroll {
             layers = <LAYER_SCROLL>;
@@ -50,12 +50,6 @@
             layers = <LAYER_SNIPE>;
             input-processors = <&zip_zxy>,
                                <&zip_xy_scaler SNIPE_MULTIPLIER SNIPE_DIVISOR>;
-        };
-
-        sixdof {
-            layers = <LAYER_6DOF>;
-            input-processors = <&zip_zxy>,
-                               <&sixdof_output>;
         };
     };
 
