@@ -1,10 +1,6 @@
 #include <stdbool.h>
 #include <zmk/sixdof_mode.h>
 
-#ifndef CONFIG_ZMK_6DOF_RELAY
-#include <zmk/keymap.h>
-#endif
-
 static bool g_sixdof_active = false;
 
 void sixdof_set_active(bool active)
@@ -14,12 +10,26 @@ void sixdof_set_active(bool active)
 
 bool sixdof_is_active(void)
 {
-#ifdef CONFIG_ZMK_6DOF_RELAY
-    /* Flag set by relay's layer_state_listener (central) or GATT write (peripheral).
-     * zmk_keymap_layer_active() is unreliable from external ZMK modules. */
     return g_sixdof_active;
-#else
-    /* Test builds without relay: query keymap directly */
-    return zmk_keymap_layer_active(CONFIG_ZMK_6DOF_LAYER);
-#endif
 }
+
+/*
+ * On builds with CONFIG_ZMK_6DOF_RELAY, the relay's layer_state_listener sets the flag.
+ * On test builds (ZMK_6DOF without relay), subscribe to layer_state_changed directly.
+ * On settings_reset builds (no keymap/event system), nothing sets the flag — that's fine.
+ */
+#if !defined(CONFIG_ZMK_6DOF_RELAY) && defined(CONFIG_ZMK_KEYMAP)
+#include <zmk/event_manager.h>
+#include <zmk/events/layer_state_changed.h>
+
+static int sixdof_mode_layer_listener(const zmk_event_t *eh) {
+    const struct zmk_layer_state_changed *ev = as_zmk_layer_state_changed(eh);
+    if (ev && ev->layer == CONFIG_ZMK_6DOF_LAYER) {
+        sixdof_set_active(ev->state);
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(sixdof_mode, sixdof_mode_layer_listener);
+ZMK_SUBSCRIPTION(sixdof_mode, zmk_layer_state_changed);
+#endif
