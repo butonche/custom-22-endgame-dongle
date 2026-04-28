@@ -260,6 +260,8 @@ static int layer_state_listener(const zmk_event_t *eh) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
+    /* Set local flag so input_processor_6dof can check without zmk_keymap_layer_active() */
+    sixdof_set_active(ev->state);
     send_sixdof_mode(ev->state);
     return ZMK_EV_EVENT_BUBBLE;
 }

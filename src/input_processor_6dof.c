@@ -18,7 +18,7 @@
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
-#include <zmk/keymap.h>
+#include <zmk/sixdof_mode.h>
 
 #if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
 #include <zmk/hid-joystick/endpoints.h>
@@ -40,12 +40,8 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
-    /* Only intercept when 6DOF layer is active */
-    if (!zmk_keymap_layer_active(CONFIG_ZMK_6DOF_LAYER)) {
-        if (event->sync && event->code == INPUT_REL_X) {
-            LOG_DBG("6dof_proc: layer %d inactive (state=0x%08x)",
-                    CONFIG_ZMK_6DOF_LAYER, zmk_keymap_layer_state());
-        }
+    /* Only intercept when 6DOF mode is active (set by relay layer_state_listener) */
+    if (!sixdof_is_active()) {
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
@@ -101,7 +97,6 @@ static struct zmk_input_processor_driver_api sixdof_api = {
 };
 
 static int sixdof_proc_init(const struct device *dev) {
-    LOG_WRN("6dof_proc: init, layer=%d", CONFIG_ZMK_6DOF_LAYER);
     return 0;
 }
 
