@@ -166,6 +166,6 @@ config ZMK_6DOF_SCALE
 config ZMK_INPUT_PROCESSOR_6DOF
     bool "6DOF dongle-side input processor (X/Y/Z -> RX/RY/RZ remapper)"
     default n
-    depends on ZMK_6DOF
+    depends on ZMK_POINTING
 
 endif # ZMK_POINTING
