@@ -192,3 +192,13 @@ config ZMK_INPUT_MOCK_SENSOR
       Use two instances to simulate dual-sensor trackball input in tests.
 
 endif # ZMK_POINTING
+
+config ZMK_HID_JOYSTICK
+    bool "6-axis joystick USB HID endpoint (for spacenavd)"
+    default n
+    depends on USB_DEVICE_HID
+
+config ZMK_HID_JOYSTICK_HID_BINDING_NUM
+    int "USB HID device binding number for joystick"
+    default 1
+    depends on ZMK_HID_JOYSTICK
