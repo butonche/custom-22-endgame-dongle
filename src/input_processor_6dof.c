@@ -42,6 +42,10 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
 
     /* Only intercept when 6DOF layer is active */
     if (!zmk_keymap_layer_active(CONFIG_ZMK_6DOF_LAYER)) {
+        if (event->sync && event->code == INPUT_REL_X) {
+            LOG_DBG("6dof_proc: layer %d inactive (state=0x%08x)",
+                    CONFIG_ZMK_6DOF_LAYER, zmk_keymap_layer_state());
+        }
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
@@ -96,9 +100,14 @@ static struct zmk_input_processor_driver_api sixdof_api = {
     .handle_event = sixdof_handle_event,
 };
 
+static int sixdof_proc_init(const struct device *dev) {
+    LOG_WRN("6dof_proc: init, layer=%d", CONFIG_ZMK_6DOF_LAYER);
+    return 0;
+}
+
 #define SIXDOF_PROC_INST(n)                                                                    \
     static struct sixdof_proc_data sixdof_data_##n = {};                                       \
-    DEVICE_DT_INST_DEFINE(n, NULL, NULL, &sixdof_data_##n, NULL, POST_KERNEL,                  \
+    DEVICE_DT_INST_DEFINE(n, sixdof_proc_init, NULL, &sixdof_data_##n, NULL, POST_KERNEL,      \
                           CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, &sixdof_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SIXDOF_PROC_INST)
