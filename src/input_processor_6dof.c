@@ -1,7 +1,10 @@
 /*
  * Dongle-side 6DOF input processor.
- * When active (layer 5 engaged), remaps decompressed X/Y/Z events to RX/RY/RZ.
- * The peripheral already computed omega values and put them on X/Y/Z channels.
+ * Forwards decompressed X/Y/Z rotation events from the peripheral to the
+ * joystick HID endpoint as RX/RY/RZ axes. Suppresses normal mouse output
+ * by zeroing the event after forwarding.
+ *
+ * Requires CONFIG_ZMK_HID_JOYSTICK=y (zmk-hid-joystick module).
  */
 
 #define DT_DRV_COMPAT zmk_input_processor_6dof
@@ -14,6 +17,15 @@
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
+#if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
+#include <zmk/hid-joystick/endpoints.h>
+#include <zmk/hid-joystick/hid.h>
+#endif
+
+struct sixdof_proc_data {
+    int16_t rx, ry, rz;
+};
+
 static int sixdof_handle_event(const struct device *dev, struct input_event *event,
                                uint32_t param1, uint32_t param2,
                                struct zmk_input_processor_state *state) {
@@ -21,22 +33,37 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
+    struct sixdof_proc_data *data = dev->data;
+
     switch (event->code) {
     case INPUT_REL_X:
-        event->code = INPUT_REL_RX;
-        LOG_DBG("6dof_proc: x=%d -> RX", event->value);
+        data->rx += event->value;
         break;
     case INPUT_REL_Y:
-        event->code = INPUT_REL_RY;
-        LOG_DBG("6dof_proc: y=%d -> RY", event->value);
+        data->ry += event->value;
         break;
     case INPUT_REL_Z:
-        event->code = INPUT_REL_RZ;
-        LOG_DBG("6dof_proc: z=%d -> RZ", event->value);
+        data->rz += event->value;
         break;
     default:
-        break;
+        return ZMK_INPUT_PROC_CONTINUE;
     }
+
+    if (event->sync) {
+#if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
+        LOG_DBG("6dof_proc: rx=%d ry=%d rz=%d", data->rx, data->ry, data->rz);
+        zmk_hid_joy2_movement_set(0, 0, 0, data->rx, data->ry, data->rz);
+        zmk_endpoints_send_joystick_report_alt();
+        zmk_hid_joy2_movement_set(0, 0, 0, 0, 0, 0);
+#endif
+        data->rx = 0;
+        data->ry = 0;
+        data->rz = 0;
+    }
+
+    /* Suppress normal mouse output */
+    event->value = 0;
+    event->sync = false;
 
     return ZMK_INPUT_PROC_CONTINUE;
 }
@@ -45,8 +72,9 @@ static struct zmk_input_processor_driver_api sixdof_api = {
     .handle_event = sixdof_handle_event,
 };
 
-#define SIXDOF_PROC_INST(n)                                                                        \
-    DEVICE_DT_INST_DEFINE(n, NULL, NULL, NULL, NULL, POST_KERNEL,                                  \
+#define SIXDOF_PROC_INST(n)                                                                    \
+    static struct sixdof_proc_data sixdof_data_##n = {};                                       \
+    DEVICE_DT_INST_DEFINE(n, NULL, NULL, &sixdof_data_##n, NULL, POST_KERNEL,                  \
                           CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, &sixdof_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SIXDOF_PROC_INST)

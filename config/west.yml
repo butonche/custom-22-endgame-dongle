@@ -30,5 +30,8 @@ manifest:
     - name: zmk-input-processor-xyz
       remote: badjeff
       revision: main
+    - name: zmk-hid-joystick
+      remote: badjeff
+      revision: main
   self:
     path: config
