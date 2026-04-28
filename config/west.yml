@@ -32,6 +32,6 @@ manifest:
       revision: main
     - name: zmk-hid-joystick
       remote: badjeff
-      revision: main
+      revision: c9da632
   self:
     path: config
