@@ -157,6 +157,21 @@ config ZMK_6DOF
       Extracts Rx/Ry/Rz from dual trackball sensors using omega = (P x V) / |P|^2.
       Activates via keymap layer 5. Requires spacenavd on Linux host.
 
+config ZMK_6DOF_RELAY
+    bool "6DOF layer state relay (central to peripheral via BLE GATT)"
+    default n
+    depends on BT
+    help
+      Central subscribes to layer_state_changed and writes 6DOF active flag to
+      peripheral over a custom GATT characteristic. Peripheral calls
+      sixdof_set_active() on write. Enable on both peripheral (CONFIG_ZMK_6DOF=y)
+      and central/dongle builds.
+
+config ZMK_6DOF_LAYER
+    int "Keymap layer number that activates 6DOF mode"
+    default 4
+    depends on ZMK_6DOF
+
 config ZMK_6DOF_SCALE
     int "6DOF rotation output scale factor"
     default 100

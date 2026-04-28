@@ -11,7 +11,7 @@
 #define SNIPE_DIVISOR      4
 #define LAYER_SCROLL       2
 #define LAYER_SNIPE        3
-#define LAYER_6DOF         5
+#define LAYER_6DOF         4
 
 / {
     split_inputs {

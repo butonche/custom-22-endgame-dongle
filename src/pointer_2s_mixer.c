@@ -6,8 +6,6 @@
 #include <math.h>
 #include <dt-bindings/zmk/p2sm.h>
 #include <zephyr/logging/log.h>
-#include <zmk/keymap.h>
-
 #if IS_ENABLED(CONFIG_ZMK_6DOF)
 #include <zmk/sixdof_mode.h>
 #endif

@@ -19,7 +19,7 @@
 #include <dt-bindings/zmk/p2sm.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
-#define LAYER_6DOF 5
+#define LAYER_6DOF 4
 
 / {
     /* Two mock sensors — mirror the real hardware listener setup */
@@ -73,7 +73,6 @@
         extras_layer   { bindings = <&trans &trans &trans &trans>; };
         scroll_layer   { bindings = <&trans &trans &trans &trans>; };
         snipe_layer    { bindings = <&trans &trans &trans &trans>; };
-        user_layer     { bindings = <&trans &trans &trans &trans>; };
 
         sixdof_layer {
             bindings = <

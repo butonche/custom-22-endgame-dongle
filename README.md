@@ -18,11 +18,14 @@ Trackball (BLE peripheral)
      → rate_limiter → XYZ_compress → BLE → dongle
 
 Dongle (BLE central, USB to host)
-  └─ BLE → XYZ_decompress → HID mouse report
-  └─ keys → rolling combos → HID keyboard report
+  └─ BLE → XYZ_decompress → HID mouse / keyboard reports
+  └─ layer 4 (6DOF): XYZ_decompress → axis remap → REL_RX/RY/RZ
+  └─ 6DOF relay: layer state → BLE GATT → trackball (activates rotation math)
 ```
 
 All pointer processing runs on the trackball peripheral. The XYZ compressor packs X+Y into a single BLE event to eliminate jitter from split GATT notifications. The dongle only decompresses and sends to the host.
+
+When layer 4 is active, the 6DOF relay (`src/sixdof_relay.c`) writes the active flag to the trackball over a custom GATT characteristic. The mixer switches from pointer output to `ω = (P×V)/|P|²` rotation extraction, emitting `REL_RX/RY/RZ` events that spacenavd reads as a SpaceMouse.
 
 ## Hardware
 
@@ -126,9 +129,47 @@ In `config/xiao_dongle.conf`:
 | 1 | Extras | Copy/paste shortcuts |
 | 2 | Scroll | Pointer → scroll wheel |
 | 3 | Snipe | Slow precision pointer |
-| 4 | User | Customizable |
+| 4 | 6DOF | SpaceMouse — ball rotation → Rx/Ry/Rz |
 
-Scroll and snipe layer overrides are in `config/xiao_dongle.overlay`.
+Layer 4 is activated by toggling MB5 (toggle stays on until pressed again). Scroll, snipe, and 6DOF layer overrides are in `config/xiao_dongle.overlay`.
+
+### 6DOF SpaceMouse Mode
+
+When layer 4 is active, the trackball emits 3D rotation axes instead of pointer movement:
+
+- Ball rotation → `REL_RX / REL_RY / REL_RZ` events on the evdev node
+- Math: `ω = (P × V) / |P|²` — angular velocity from cross product of sensor surface position and velocity vector
+- Both sensors contribute independently; their results are averaged
+- Pointer movement and twist scroll are suppressed while 6DOF is active
+
+**Host setup (Linux):**
+```bash
+# Find the dongle's HID evdev node
+evtest  # look for REL_RX/RY/RZ axes when rotating ball
+
+# Configure spacenavd to use the dongle
+# Add to /etc/spnavrc:
+#   device-id <VID> <PID>
+systemctl restart spacenavd
+```
+
+Works with any spacenavd-aware application (FreeCAD, Blender, etc.).
+
+**Tuning:**
+```ini
+# In config/efogtech_trackball_0.conf
+CONFIG_ZMK_6DOF_SCALE=100   # output scale factor (1-1000)
+```
+
+**Kconfig symbols:**
+
+| Symbol | Build | Purpose |
+|--------|-------|---------|
+| `CONFIG_ZMK_6DOF=y` | trackball | Enables rotation math in mixer |
+| `CONFIG_ZMK_6DOF_SCALE` | trackball | Output scale factor (default 100) |
+| `CONFIG_ZMK_6DOF_LAYER` | trackball | Layer number that activates 6DOF (default 4) |
+| `CONFIG_ZMK_6DOF_RELAY=y` | both | BLE GATT relay: central sends active flag to peripheral |
+| `CONFIG_ZMK_INPUT_PROCESSOR_6DOF=y` | dongle | Axis remapper (X/Y/Z → RX/RY/RZ) |
 
 ## Processing Chain
 
@@ -141,6 +182,11 @@ PAW3395 sensors → bridge code → 2-sensor mixer →
   rate_limiter (8ms, BLE only) →
   XYZ compressor (packs X+Y into single event) →
   input-split → BLE
+
+6DOF mode (layer 4 active, signaled via GATT relay):
+  2-sensor mixer → ω=(P×V)/|P|² per sensor → average →
+  scale by CONFIG_ZMK_6DOF_SCALE → emit REL_X/Y/Z carrying Rx/Ry/Rz →
+  XYZ compressor → BLE
 ```
 
 ### Dongle
@@ -149,9 +195,11 @@ BLE → input-split proxy → input-listener →
   XYZ decompressor → HID mouse report
 
 Layer overrides:
-  Scroll: XYZ decompress → scale 1/3 → remap to scroll → invert Y
-  Snipe:  XYZ decompress → scale 1/4
+  Scroll (layer 2): XYZ decompress → scale 1/3 → remap to scroll → invert Y
+  Snipe  (layer 3): XYZ decompress → scale 1/4
+  6DOF   (layer 4): XYZ decompress → axis remap (X→RX, Y→RY, Z→RZ) → evdev
 ```
+
 
 ## External Modules
 
@@ -169,7 +217,22 @@ Stripped from efogdev modules — compile-time config only, no NVS/shell/behavio
 
 | Source | Purpose |
 |--------|---------|
-| `src/pointer_2s_mixer.c` | Dual-sensor mixing, twist scroll, SMA smoothing |
+| `src/pointer_2s_mixer.c` | Dual-sensor mixing, twist scroll, SMA smoothing, 6DOF rotation extraction |
 | `src/accel_curve.c` | Bezier acceleration curves |
 | `src/scroll_scaler.c` | Scroll scaling with internal remainder tracking |
 | `src/report_rate_limit.c` | BLE report rate throttling |
+| `src/sixdof_mode.c` | 6DOF active flag + `sixdof_is_active()` |
+| `src/sixdof_relay.c` | BLE GATT relay: sends layer 4 state from dongle to trackball |
+| `src/input_processor_6dof.c` | Dongle-side input processor: remaps X/Y/Z → RX/RY/RZ |
+
+## Tests
+
+```bash
+bash run-tests.sh
+```
+
+Runs native_posix_64 integration tests inside Docker (`zmk-dev-x86_64:3.5`). Output saved to `build-logs/test_output_<name>.log`.
+
+| Test | What it checks |
+|------|---------------|
+| `tests/sixdof/rotate_ry/` | Sensor1 dx=100 → `rx=-10 ry=-49 rz=40` (6DOF math with known geometry) |

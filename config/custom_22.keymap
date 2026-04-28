@@ -10,7 +10,7 @@
  *   1 - Extras: copy/paste shortcuts
  *   2 - Scroll: trackball becomes scroll wheel
  *   3 - Snipe: slow precision pointer
- *   4 - User: customizable
+ *   4 - 6DOF: SpaceMouse rotation (toggle with MB5)
  */
 
 #include <behaviors.dtsi>
@@ -30,7 +30,7 @@
 #define LAYER_EXTRAS       1
 #define LAYER_SCROLL       2
 #define LAYER_SNIPE        3
-#define LAYER_USER         4
+#define LAYER_6DOF         4
 
 // LEFT SIDE (col 0-10, no offset)
 #define TLI 3
@@ -144,7 +144,7 @@
         &ltmkp LAYER_SNIPE ENTER  &ltmkp LAYER_SCROLL ESC
         &mkp MCLK                 &cdch LAYER_SCROLL 0
         &mkp LCLK                 &mkp RCLK
-        &ltm LAYER_EXTRAS MB4     &ltm LAYER_USER MB5
+        &ltm LAYER_EXTRAS MB4     &tog LAYER_6DOF
         /* Trackball encoders 30-33 */
         &kp C_VOL_UP  &kp LC(TAB)  &kp C_VOL_DN  &kp LC(LS(TAB))
       >;
@@ -189,15 +189,15 @@
       >;
     };
 
-    user_layer {
-      display-name = "User";
+    sixdof_layer {
+      display-name = "6DOF";
       sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN &inc_dec_kp C_VOL_UP C_VOL_DN>;
       bindings = <
         KB_TRANS
         &trans  &trans
         &trans  &trans
         &trans  &trans
-        &trans  &trans
+        &trans  &tog LAYER_6DOF
         &kp C_VOL_UP  &kp LC(TAB)  &kp C_VOL_DN  &kp LC(LS(TAB))
       >;
     };

@@ -23,6 +23,10 @@ if(CONFIG_ZMK_6DOF)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/sixdof_mode.c)
 endif()
 
+if(CONFIG_ZMK_6DOF_RELAY)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/sixdof_relay.c)
+endif()
+
 if(CONFIG_ZMK_INPUT_PROCESSOR_6DOF)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/input_processor_6dof.c)
 endif()
