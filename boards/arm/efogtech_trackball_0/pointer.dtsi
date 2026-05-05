@@ -45,6 +45,7 @@
 		max-curves = <4>;
 		points = <36>;
 		event-codes = <INPUT_REL_X INPUT_REL_Y>;
+		couple-axes;
 		curve-data = <0 0 116 41 10 32 16 39
 		116 41 4809 100 782 41 171 100>;
 	};
@@ -125,6 +126,8 @@
 		power-mode = <PAW3395_OFFICE>;
 		invert-x;
 		invert-y;
+		ripple-control;
+		pair-master;
 	};
 };
 
@@ -148,5 +151,6 @@
 		x-input-code = <INPUT_REL_X>;
 		y-input-code = <INPUT_REL_Y>;
 		power-mode = <PAW3395_OFFICE>;
+		ripple-control;
 	};
 };

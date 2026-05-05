@@ -17,7 +17,7 @@ manifest:
       import: app/west.yml
     - name: zmk-paw3395-driver
       remote: efogdev
-      revision: 209a1f9
+      revision: b896fcb
     - name: zmk-ec11-ish-driver
       remote: efogdev
       revision: a539bed

@@ -23,3 +23,8 @@ properties:
       Bezier control points as groups of 8 int16 values per segment:
       start_x, start_y, end_x, end_y, cp1_x, cp1_y, cp2_x, cp2_y.
       Values are scaled by 100 (e.g. 41 means 0.41).
+  couple-axes:
+    type: boolean
+    description: |
+      When true, acceleration is applied to the combined magnitude of all
+      axes, then scaled back proportionally. Prevents faster diagonal movement.

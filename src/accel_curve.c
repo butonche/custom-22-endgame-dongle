@@ -1,10 +1,11 @@
 /*
  * Stripped acceleration curve input processor.
- * Based on efogdev/zmk-acceleration-curves (f19dcb8).
+ * Based on efogdev/zmk-acceleration-curves (0a00ade / v1.0.3).
  *
  * Removed: NVS persistence, shell/debug dump, deferred work, dynamic
- *          allocation, runtime config import.
- * Added:   Static arrays, DTS "curve-data" property parsed at init.
+ *          allocation, runtime config import, monitor mode.
+ * Added:   Static arrays, DTS "curve-data" property parsed at init,
+ *          axes coupling for consistent diagonal speed.
  */
 
 #include <math.h>
@@ -12,6 +13,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/input/input.h>
 #include <drivers/input_processor.h>
 #include <zephyr/logging/log.h>
 
@@ -41,6 +43,7 @@ struct zip_accel_curve_config {
     uint8_t         points;
     uint8_t         event_codes_len;
     uint8_t         curve_data_len;     /* number of int16 values in curve-data */
+    bool            couple_axes;        /* apply accel to combined magnitude    */
     const int16_t  *curve_data;         /* pointer to DTS curve-data array      */
     const uint16_t  event_codes[];
 };
@@ -52,6 +55,10 @@ struct zip_accel_curve_data {
     struct curve        *curves;        /* points into static storage */
     struct accel_point  *points;        /* points into static storage */
     float               *remainders;    /* points into static storage */
+    /* Axes coupling buffers */
+    int32_t             *buffered_values;
+    bool                *buffered_present;
+    bool                *inject_pass;
 };
 
 /* ------------------------------------------------------------------ */
@@ -129,8 +136,36 @@ static int set_curves(const struct device *dev, uint8_t curve_count) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Coefficient lookup helper                                          */
+/* ------------------------------------------------------------------ */
+
+static float sample_coef(const struct accel_point *points, const uint32_t num_points,
+                         const int64_t abs_input_mult_int, const float input_mult_smooth) {
+    if (abs_input_mult_int <= 100) {
+        return points[0].y_coef;
+    }
+    if (abs_input_mult_int >= points[num_points - 1].x) {
+        return points[num_points - 1].y_coef;
+    }
+    if (abs_input_mult_int <= points[0].x) {
+        return points[0].y_coef;
+    }
+    for (uint32_t i = 0; i < num_points - 1; i++) {
+        if (abs_input_mult_int >= points[i].x && abs_input_mult_int < points[i + 1].x) {
+            const struct accel_point *p0 = &points[i];
+            const struct accel_point *p1 = &points[i + 1];
+            const float t = (input_mult_smooth - (float)p0->x) / (float)(p1->x - p0->x);
+            return p0->y_coef + t * (p1->y_coef - p0->y_coef);
+        }
+    }
+    return 1.0f;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Event handler  (lookup + interpolation + remainder tracking)       */
 /* ------------------------------------------------------------------ */
+
+#define ACCEL_CURVE_MAX_COUPLED_AXES 8
 
 static int sy_handle_event(const struct device *dev,
                            struct input_event *event,
@@ -157,38 +192,106 @@ static int sy_handle_event(const struct device *dev,
         return 0;
     }
 
-    const int32_t input_val     = event->value;
-    const int32_t abs_input     = abs(input_val);
-    const int64_t abs_input_mult = (int64_t)abs_input * 100;
-    const int32_t sign          = (input_val >= 0) ? 1 : -1;
-
     if (config->points == 0 || !data->points || !data->remainders) {
         return 0;
     }
 
-    float coef = 1.0f;
-    if (abs_input_mult >= data->points[config->points - 1].x) {
-        coef = data->points[config->points - 1].y_coef;
-    } else if (abs_input_mult <= data->points[0].x) {
-        coef = data->points[0].y_coef;
-    } else {
-        for (uint32_t i = 0; i < config->points - 1; i++) {
-            if (abs_input_mult >= data->points[i].x &&
-                abs_input_mult <  data->points[i + 1].x) {
-                const struct accel_point *p0 = &data->points[i];
-                const struct accel_point *p1 = &data->points[i + 1];
-                const float t = (float)(abs_input_mult - p0->x) /
-                                (float)(p1->x - p0->x);
-                coef = p0->y_coef + t * (p1->y_coef - p0->y_coef);
+    /* --- Axes coupling path --- */
+    if (config->couple_axes && config->event_codes_len <= ACCEL_CURVE_MAX_COUPLED_AXES) {
+        if (!data->buffered_values || !data->buffered_present || !data->inject_pass) {
+            return 0;
+        }
+
+        /* If this is a re-injected event, pass through */
+        if (data->inject_pass[event_idx]) {
+            data->inject_pass[event_idx] = false;
+            return 0;
+        }
+
+        /* Buffer this axis value */
+        data->buffered_values[event_idx] = event->value;
+        data->buffered_present[event_idx] = true;
+
+        /* Wait for sync event (all axes in this report) */
+        if (!event->sync) {
+            event->value = 0;
+            return 0;
+        }
+
+        /* Compute combined magnitude */
+        float effective[ACCEL_CURVE_MAX_COUPLED_AXES] = {0};
+        float mag_sq = 0.0f;
+        for (uint8_t i = 0; i < config->event_codes_len; i++) {
+            if (!data->buffered_present[i]) continue;
+            const int32_t v = data->buffered_values[i];
+            const float av = (float)((v >= 0) ? v : -v);
+            effective[i] = av;
+            mag_sq += av * av;
+        }
+
+        if (mag_sq <= 0.0f) {
+            for (uint8_t i = 0; i < config->event_codes_len; i++) {
+                data->buffered_present[i] = false;
+            }
+            event->value = 0;
+            return 0;
+        }
+
+        const float magnitude = sqrtf(mag_sq);
+        const int64_t abs_input_mult = (int64_t)(magnitude * 100.0f);
+        const float input_mult = magnitude * 100.0f;
+        const float coef = sample_coef(data->points, config->points, abs_input_mult, input_mult);
+
+        /* Find last buffered axis for sync flag on re-inject */
+        int8_t last_idx = -1;
+        for (int16_t i = (int16_t)config->event_codes_len - 1; i >= 0; i--) {
+            if (data->buffered_present[i]) {
+                last_idx = (int8_t)i;
                 break;
             }
         }
+
+        /* Apply coefficient proportionally to each axis and re-inject */
+        for (uint8_t i = 0; i < config->event_codes_len; i++) {
+            if (!data->buffered_present[i]) continue;
+            const int32_t v = data->buffered_values[i];
+            const int32_t sign = (v >= 0) ? 1 : -1;
+            const float result = effective[i] * coef + data->remainders[i];
+            const int32_t out_int = (int32_t)result;
+            data->remainders[i] = result - (float)out_int;
+            const int32_t scaled = out_int * sign;
+
+            data->inject_pass[i] = true;
+            input_report_rel(event->dev, config->event_codes[i], scaled,
+                             i == (uint8_t)last_idx, K_NO_WAIT);
+        }
+
+        /* Clear buffers */
+        for (uint8_t i = 0; i < config->event_codes_len; i++) {
+            data->buffered_present[i] = false;
+        }
+
+        event->value = 0;
+        event->sync = false;
+        return 0;
     }
 
-    const float result_with_remainder =
-        (float)abs_input * coef + data->remainders[event_idx];
-    const int32_t result_int = (int32_t)result_with_remainder;
-    data->remainders[event_idx] = result_with_remainder - (float)result_int;
+    /* --- Standard per-axis path --- */
+    const int32_t input_val = event->value;
+    if (input_val == 0) {
+        return 0;
+    }
+
+    const int32_t abs_input = abs(input_val);
+    const int64_t abs_input_mult = (int64_t)abs_input * 100;
+    const float input_mult = (float)abs_input * 100.0f;
+    const int32_t sign = (input_val >= 0) ? 1 : -1;
+
+    const float coef = sample_coef(data->points, config->points, abs_input_mult, input_mult);
+
+    const float result = (float)abs_input * coef + data->remainders[event_idx];
+    const int32_t result_int = (int32_t)result;
+    data->remainders[event_idx] = result - (float)result_int;
     event->value = result_int * sign;
     return 0;
 }
@@ -273,17 +376,24 @@ static struct zmk_input_processor_driver_api sy_driver_api = {
     static struct curve         _curves_##n[DT_INST_PROP_OR(n, max_curves, 8)]; \
     static struct accel_point   _points_##n[DT_INST_PROP_OR(n, points, 64)];    \
     static float                _remainders_##n[DT_INST_PROP_LEN(n, event_codes)]; \
+    static int32_t              _buffered_values_##n[DT_INST_PROP_LEN(n, event_codes)]; \
+    static bool                 _buffered_present_##n[DT_INST_PROP_LEN(n, event_codes)]; \
+    static bool                 _inject_pass_##n[DT_INST_PROP_LEN(n, event_codes)]; \
     static const int16_t       _curve_data_##n[] =                              \
         DT_INST_PROP(n, curve_data);                                            \
     static struct zip_accel_curve_data data_##n = {                             \
-        .initialized = false,                                                   \
-        .curves      = _curves_##n,                                             \
-        .points      = _points_##n,                                             \
-        .remainders  = _remainders_##n,                                         \
+        .initialized     = false,                                               \
+        .curves          = _curves_##n,                                         \
+        .points          = _points_##n,                                         \
+        .remainders      = _remainders_##n,                                     \
+        .buffered_values = _buffered_values_##n,                                \
+        .buffered_present = _buffered_present_##n,                              \
+        .inject_pass     = _inject_pass_##n,                                    \
     };                                                                          \
     static const struct zip_accel_curve_config config_##n = {                   \
         .max_curves     = DT_INST_PROP_OR(n, max_curves, 8),                   \
         .points         = DT_INST_PROP_OR(n, points, 64),                      \
+        .couple_axes    = DT_INST_PROP_OR(n, couple_axes, false),               \
         .curve_data_len = ARRAY_SIZE(_curve_data_##n),                          \
         .curve_data     = _curve_data_##n,                                      \
         .event_codes_len = DT_INST_PROP_LEN(n, event_codes),                   \

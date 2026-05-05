@@ -130,12 +130,31 @@ config POINTER_2S_MIXER_FEEDBACK_COOLDOWN
     int "Feedback cooldown (ms)"
     default 160
 
+config POINTER_2S_MIXER_MEDIAN_EN
+    bool "Enable median filter for outlier rejection"
+    default y
+
+config POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE
+    int "Median filter window size"
+    default 3
+    depends on POINTER_2S_MIXER_MEDIAN_EN
+
+config POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE_MAX
+    int "Median filter maximum window size (array allocation)"
+    default 24
+    depends on POINTER_2S_MIXER_MEDIAN_EN
+
 endif # ZMK_POINTER_2S_MIXER
 
 config ZMK_ACCEL_CURVE
     bool "Acceleration curves"
     default n
     depends on INPUT
+
+config ZMK_ACCEL_CURVE_COUPLE_AXES
+    bool "Enable axes coupling for acceleration curves"
+    default y
+    depends on ZMK_ACCEL_CURVE
 
 config ZMK_INPUT_PROCESSOR_REPORT_RATE_LIMIT
     bool "Report rate limiter"
