@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -49,6 +50,7 @@ struct zip_pointer_2s_mixer_data {
     struct k_work_delayable twist_filter_cleanup_work;
 
     bool initialized, twist_enabled, twist_reversed;
+    bool s1_synced, s2_synced;
     uint32_t last_rpt_time, last_rpt_time_twist;
     int16_t rpt_x, rpt_y;
     float rpt_x_remainder, rpt_y_remainder, rpt_twist_remainder;
@@ -87,11 +89,52 @@ struct zip_pointer_2s_mixer_data {
     uint8_t sma_window_size;
     uint32_t last_sma_time;
 #endif
+
+#if IS_ENABLED(CONFIG_POINTER_2S_MIXER_MEDIAN_EN)
+    int16_t median_buf[4][CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE_MAX];
+    uint8_t median_head[4];
+    uint8_t median_count[4];
+#endif
 };
 
 static int data_init(const struct device *dev);
 static void apply_rotation(float matrix[3][3], float dx, float dy, float *out_x, float *out_y);
 static void apply_coef(float coef, float *x, float *y);
+
+#if IS_ENABLED(CONFIG_POINTER_2S_MIXER_MEDIAN_EN)
+static int16_t apply_median(int16_t *buf, uint8_t *head, uint8_t *count,
+                            uint8_t window, const int16_t sample) {
+    if (window < 2) {
+        return sample;
+    }
+    if (window > CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE_MAX) {
+        window = CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE_MAX;
+    }
+
+    buf[*head] = sample;
+    *head = (uint8_t)((*head + 1) % window);
+    if (*count < window) {
+        (*count)++;
+    }
+
+    if (*count < window) {
+        return sample;
+    }
+
+    int16_t sorted[CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE_MAX];
+    memcpy(sorted, buf, window * sizeof(int16_t));
+    for (uint8_t i = 1; i < window; i++) {
+        const int16_t v = sorted[i];
+        int j = i;
+        while (j > 0 && sorted[j - 1] > v) {
+            sorted[j] = sorted[j - 1];
+            j--;
+        }
+        sorted[j] = v;
+    }
+    return sorted[window / 2];
+}
+#endif
 
 #if IS_ENABLED(CONFIG_POINTER_2S_MIXER_SMA_EN)
 static void apply_sma(struct zip_pointer_2s_mixer_data *data, float *x, float *y) {
@@ -138,7 +181,19 @@ static int process_and_report(const struct device *dev) {
 #endif
 
     if (data->values.s1_x != 0 || data->values.s1_y != 0) {
-        apply_rotation(data->rotation_matrix1, data->values.s1_x, data->values.s1_y, &rotated_x, &rotated_y);
+        int16_t dx = data->values.s1_x;
+        int16_t dy = data->values.s1_y;
+        data->values.s1_x = 0;
+        data->values.s1_y = 0;
+
+#if IS_ENABLED(CONFIG_POINTER_2S_MIXER_MEDIAN_EN)
+        dx = apply_median(data->median_buf[0], &data->median_head[0], &data->median_count[0],
+                          CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE, dx);
+        dy = apply_median(data->median_buf[1], &data->median_head[1], &data->median_count[1],
+                          CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE, dy);
+#endif
+
+        apply_rotation(data->rotation_matrix1, dx, dy, &rotated_x, &rotated_y);
         data->twist_values.s1_x += rotated_x;
         data->twist_values.s1_y += rotated_y;
 
@@ -157,13 +212,23 @@ static int process_and_report(const struct device *dev) {
             data->rpt_y_remainder += rotated_y;
         }
 
-        data->values.s1_x = 0;
-        data->values.s1_y = 0;
         dt = 0;
     }
 
     if (data->values.s2_x != 0 || data->values.s2_y != 0) {
-        apply_rotation(data->rotation_matrix2, data->values.s2_x, data->values.s2_y, &rotated_x, &rotated_y);
+        int16_t dx = data->values.s2_x;
+        int16_t dy = data->values.s2_y;
+        data->values.s2_x = 0;
+        data->values.s2_y = 0;
+
+#if IS_ENABLED(CONFIG_POINTER_2S_MIXER_MEDIAN_EN)
+        dx = apply_median(data->median_buf[2], &data->median_head[2], &data->median_count[2],
+                          CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE, dx);
+        dy = apply_median(data->median_buf[3], &data->median_head[3], &data->median_count[3],
+                          CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE, dy);
+#endif
+
+        apply_rotation(data->rotation_matrix2, dx, dy, &rotated_x, &rotated_y);
         data->twist_values.s2_x += rotated_x;
         data->twist_values.s2_y += rotated_y;
 
@@ -181,9 +246,6 @@ static int process_and_report(const struct device *dev) {
             data->rpt_x_remainder += rotated_x;
             data->rpt_y_remainder += rotated_y;
         }
-
-        data->values.s2_x = 0;
-        data->values.s2_y = 0;
     }
 
 #if IS_ENABLED(CONFIG_ZMK_6DOF)
@@ -517,6 +579,10 @@ static int sy_handle_event(const struct device *dev, struct input_event *event, 
         } else if (event->code == INPUT_REL_Y) {
             data->values.s1_y += event->value;
         }
+
+        if (event->sync) {
+            data->s1_synced = true;
+        }
     } else if (p1 & INPUT_MIXER_SENSOR2) {
 #if IS_ENABLED(CONFIG_POINTER_2S_MIXER_ENSURE_SYNC)
         data->last_sensor2_report = now;
@@ -527,6 +593,10 @@ static int sy_handle_event(const struct device *dev, struct input_event *event, 
         } else if (event->code == INPUT_REL_Y) {
             data->values.s2_y += event->value;
         }
+
+        if (event->sync) {
+            data->s2_synced = true;
+        }
     }
 
     event->value = 0;
@@ -536,11 +606,15 @@ static int sy_handle_event(const struct device *dev, struct input_event *event, 
     if (unlikely(abs((int32_t) (data->last_sensor1_report - data->last_sensor2_report)) > CONFIG_POINTER_2S_MIXER_SYNC_WINDOW_MS)) {
         memset(&data->values, 0, sizeof(struct p2sm_dataframe));
         memset(&data->twist_values, 0, sizeof(struct p2sm_dataframe));
+        data->s1_synced = false;
+        data->s2_synced = false;
         return 0;
     }
 #endif
 
-    if (now - data->last_rpt_time > config->sync_report_ms) {
+    if (data->s1_synced && data->s2_synced && now - data->last_rpt_time > config->sync_report_ms) {
+        data->s1_synced = false;
+        data->s2_synced = false;
         process_and_report(dev);
     }
 
@@ -674,6 +748,13 @@ static int data_init(const struct device *dev) {
     data->sma_head_index = 0;
     data->sma_count = 0;
     LOG_DBG("SMA buffers initialized: %d entries", CONFIG_POINTER_2S_MIXER_SMA_WINDOW_SIZE);
+#endif
+
+#if IS_ENABLED(CONFIG_POINTER_2S_MIXER_MEDIAN_EN)
+    memset(data->median_buf, 0, sizeof(data->median_buf));
+    memset(data->median_head, 0, sizeof(data->median_head));
+    memset(data->median_count, 0, sizeof(data->median_count));
+    LOG_DBG("Median filter initialized: window %d", CONFIG_POINTER_2S_MIXER_MEDIAN_WINDOW_SIZE);
 #endif
 
     return 1;
