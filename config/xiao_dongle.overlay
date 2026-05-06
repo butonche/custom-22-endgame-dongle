@@ -79,3 +79,10 @@
         triggers-per-rotation = <12>;
     };
 };
+
+/* Second CDC-ACM for Magellan SpaceMouse serial emulation */
+&zephyr_udc0 {
+    sixdof_cdc_acm: sixdof_cdc_acm {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};

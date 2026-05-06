@@ -1,11 +1,8 @@
 /*
  * Dongle-side 6DOF input processor.
- * Always in the input-listener processor chain. When 6DOF layer is active,
- * forwards X/Y/Z as RX/RY/RZ to the joystick HID endpoint and suppresses
- * normal mouse output. When inactive, passes events through unchanged.
- *
- * Rate-limits USB reports to avoid overwhelming the endpoint buffer.
- * Requires CONFIG_ZMK_HID_JOYSTICK=y (bundled joystick HID module).
+ * Always in the input-listener processor chain. When 6DOF mode is active,
+ * accumulates rotation events and sends them as Magellan serial packets.
+ * When inactive, passes events through unchanged for normal mouse operation.
  */
 
 #define DT_DRV_COMPAT zmk_input_processor_6dof
@@ -20,12 +17,9 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include <zmk/sixdof_mode.h>
 
-#if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
-#include <zmk/hid-joystick/endpoints.h>
-#include <zmk/hid-joystick/hid.h>
-#endif
+void sixdof_serial_send(int16_t rx, int16_t ry, int16_t rz);
 
-/* Minimum interval between USB joystick reports (ms) */
+/* Minimum interval between serial reports (ms) */
 #define SIXDOF_REPORT_INTERVAL_MS 16
 
 struct sixdof_proc_data {
@@ -40,14 +34,11 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
-    /* Only intercept when 6DOF mode is active (set by relay layer_state_listener) */
     if (!sixdof_is_active()) {
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
     struct sixdof_proc_data *data = dev->data;
-
-    LOG_DBG("6dof_proc: IN code=%d val=%d sync=%d", event->code, event->value, event->sync);
 
     switch (event->code) {
     case INPUT_REL_X:
@@ -63,32 +54,19 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
         data->rz += event->value;
         break;
     default:
-        LOG_DBG("6dof_proc: unknown code %d, passing through", event->code);
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
     if (event->sync) {
-#if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
         int64_t now = k_uptime_get();
-        LOG_DBG("6dof_proc: SYNC rx=%d ry=%d rz=%d dt=%lld",
-                data->rx, data->ry, data->rz,
-                now - data->last_report_time);
         if ((data->rx != 0 || data->ry != 0 || data->rz != 0) &&
             (now - data->last_report_time >= SIXDOF_REPORT_INTERVAL_MS)) {
-            zmk_hid_joy2_movement_set(0, 0, 0, data->rx, data->ry, data->rz);
-            int err = zmk_endpoints_send_joystick_report_alt();
-            LOG_DBG("6dof_proc: SENT rx=%d ry=%d rz=%d err=%d", data->rx, data->ry, data->rz, err);
-            zmk_hid_joy2_movement_set(0, 0, 0, 0, 0, 0);
+            sixdof_serial_send(data->rx, data->ry, data->rz);
             data->last_report_time = now;
             data->rx = 0;
             data->ry = 0;
             data->rz = 0;
         }
-#else
-        data->rx = 0;
-        data->ry = 0;
-        data->rz = 0;
-#endif
     }
 
     /* Suppress normal mouse output */

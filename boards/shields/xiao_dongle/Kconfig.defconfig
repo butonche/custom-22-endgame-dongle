@@ -15,4 +15,10 @@ config I2C
 config SSD1306
     default y
 
+config ZMK_INPUT_PROCESSOR_6DOF
+    default y
+
+config ZMK_6DOF_RELAY
+    default y
+
 endif
