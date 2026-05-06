@@ -47,6 +47,8 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
 
     struct sixdof_proc_data *data = dev->data;
 
+    LOG_DBG("6dof_proc: IN code=%d val=%d sync=%d", event->code, event->value, event->sync);
+
     switch (event->code) {
     case INPUT_REL_X:
         data->rx += event->value;
@@ -58,20 +60,21 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
         data->rz += event->value;
         break;
     default:
+        LOG_DBG("6dof_proc: unknown code %d, passing through", event->code);
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
     if (event->sync) {
 #if IS_ENABLED(CONFIG_ZMK_HID_JOYSTICK)
         int64_t now = k_uptime_get();
+        LOG_DBG("6dof_proc: SYNC rx=%d ry=%d rz=%d dt=%lld",
+                data->rx, data->ry, data->rz,
+                now - data->last_report_time);
         if ((data->rx != 0 || data->ry != 0 || data->rz != 0) &&
             (now - data->last_report_time >= SIXDOF_REPORT_INTERVAL_MS)) {
-            LOG_DBG("6dof_proc: rx=%d ry=%d rz=%d", data->rx, data->ry, data->rz);
             zmk_hid_joy2_movement_set(0, 0, 0, data->rx, data->ry, data->rz);
             int err = zmk_endpoints_send_joystick_report_alt();
-            if (err) {
-                LOG_WRN("6dof_proc: send failed (%d)", err);
-            }
+            LOG_DBG("6dof_proc: SENT rx=%d ry=%d rz=%d err=%d", data->rx, data->ry, data->rz, err);
             zmk_hid_joy2_movement_set(0, 0, 0, 0, 0, 0);
             data->last_report_time = now;
             data->rx = 0;
