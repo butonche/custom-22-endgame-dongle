@@ -51,12 +51,15 @@ static int sixdof_handle_event(const struct device *dev, struct input_event *eve
 
     switch (event->code) {
     case INPUT_REL_X:
+    case INPUT_REL_RX:
         data->rx += event->value;
         break;
     case INPUT_REL_Y:
+    case INPUT_REL_RY:
         data->ry += event->value;
         break;
     case INPUT_REL_Z:
+    case INPUT_REL_RZ:
         data->rz += event->value;
         break;
     default:
