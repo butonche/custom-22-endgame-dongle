@@ -62,18 +62,12 @@ BT_GATT_SERVICE_DEFINE(
 #include <zmk/ble.h>
 #include <zmk/events/layer_state_changed.h>
 
-/*
- * Delay our GATT discovery to avoid racing with ZMK's own split service
- * discovery which runs immediately on connect. Zephyr only supports one
- * outstanding bt_gatt_discover() per connection at a time.
- */
-#define RELAY_DISCOVER_DELAY_MS 0
-
 struct sixdof_relay_slot {
     struct bt_conn *conn;
     struct bt_gatt_discover_params discover_params;
     struct k_work_delayable discover_work;
     uint16_t char_handle;
+    bool discovery_done; /* true = discovery completed (found or not found) */
 };
 
 static struct sixdof_relay_slot slots[ZMK_SPLIT_BLE_PERIPHERAL_COUNT];
@@ -103,6 +97,7 @@ static uint8_t chrc_discovery_cb(struct bt_conn *conn, const struct bt_gatt_attr
     const struct bt_uuid *uuid = ((struct bt_gatt_chrc *)attr->user_data)->uuid;
     if (bt_uuid_cmp(uuid, BT_UUID_DECLARE_128(ZMK_6DOF_RELAY_CHAR_MODE_UUID)) == 0) {
         slot->char_handle = bt_gatt_attr_value_handle(attr);
+        slot->discovery_done = true;
         k_work_cancel_delayable(&slot->discover_work);
         LOG_DBG("6dof relay: found char handle %u", slot->char_handle);
         return BT_GATT_ITER_STOP;
@@ -117,7 +112,11 @@ static const struct bt_uuid_128 sixdof_relay_svc_uuid =
 static uint8_t svc_discovery_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                                   struct bt_gatt_discover_params *params) {
     if (!attr) {
-        /* Service not found on this peripheral (e.g. keyboard halves) — OK */
+        /* Service not found — this peripheral doesn't have the relay (keyboard half) */
+        struct sixdof_relay_slot *slot = slot_for_conn(conn);
+        if (slot) {
+            slot->discovery_done = true;
+        }
         memset(params, 0, sizeof(*params));
         return BT_GATT_ITER_STOP;
     }
@@ -143,22 +142,18 @@ static uint8_t svc_discovery_cb(struct bt_conn *conn, const struct bt_gatt_attr 
     return BT_GATT_ITER_STOP;
 }
 
-/* ── Delayed discovery work handler ──────────────────────────────────────── */
+/* ── Discovery work handler (only used for retries on -ENOMEM) ───────────── */
 
 static void relay_discover_work_handler(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct sixdof_relay_slot *slot =
         CONTAINER_OF(dwork, struct sixdof_relay_slot, discover_work);
 
-    if (!slot->conn) {
-        return; /* disconnected */
+    if (!slot->conn || slot->discovery_done || slot->char_handle != 0) {
+        return;
     }
 
-    if (slot->char_handle != 0) {
-        return; /* already discovered */
-    }
-
-    LOG_DBG("6dof relay: starting service discovery");
+    LOG_DBG("6dof relay: retrying service discovery");
 
     slot->discover_params.uuid = &sixdof_relay_svc_uuid.uuid;
     slot->discover_params.func = svc_discovery_cb;
@@ -168,12 +163,26 @@ static void relay_discover_work_handler(struct k_work *work) {
 
     int ret = bt_gatt_discover(slot->conn, &slot->discover_params);
     if (ret) {
-        LOG_WRN("6dof relay: discover returned %d, retry in 5s", ret);
-        k_work_schedule(dwork, K_MSEC(5000));
-    } else {
-        /* If callback doesn't set char_handle within 3s, retry */
-        k_work_schedule(dwork, K_MSEC(3000));
+        LOG_WRN("6dof relay: discover returned %d, retry in 500ms", ret);
+        k_work_schedule(dwork, K_MSEC(500));
     }
+    /* On success (ret==0), callback will fire. No unconditional retry. */
+}
+
+static void start_relay_discovery(struct sixdof_relay_slot *slot) {
+    slot->discover_params.uuid = &sixdof_relay_svc_uuid.uuid;
+    slot->discover_params.func = svc_discovery_cb;
+    slot->discover_params.start_handle = 0x0001;
+    slot->discover_params.end_handle = 0xffff;
+    slot->discover_params.type = BT_GATT_DISCOVER_PRIMARY;
+
+    int ret = bt_gatt_discover(slot->conn, &slot->discover_params);
+    if (ret) {
+        /* ATT queue likely full — retry shortly */
+        LOG_DBG("6dof relay: discover returned %d, scheduling retry", ret);
+        k_work_schedule(&slot->discover_work, K_MSEC(500));
+    }
+    /* On success, svc_discovery_cb will be called by BLE stack */
 }
 
 /* ── Connection callbacks ────────────────────────────────────────────────── */
@@ -198,18 +207,14 @@ static void on_connected(struct bt_conn *conn, uint8_t err) {
         }
     }
     if (!slot) {
-        LOG_WRN("6dof relay: no free slot for connection");
         return;
     }
 
     slot->conn = conn;
     slot->char_handle = 0;
+    slot->discovery_done = false;
 
-    LOG_DBG("6dof relay: connected slot %d, scheduling discovery in %dms",
-            (int)(slot - slots), RELAY_DISCOVER_DELAY_MS);
-
-    /* Delay discovery to let ZMK's split service discovery complete first */
-    k_work_schedule(&slot->discover_work, K_MSEC(RELAY_DISCOVER_DELAY_MS));
+    start_relay_discovery(slot);
 }
 
 static void on_disconnected(struct bt_conn *conn, uint8_t reason) {
@@ -218,6 +223,7 @@ static void on_disconnected(struct bt_conn *conn, uint8_t reason) {
         k_work_cancel_delayable(&slot->discover_work);
         slot->conn = NULL;
         slot->char_handle = 0;
+        slot->discovery_done = false;
     }
 }
 
